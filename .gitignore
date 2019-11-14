@@ -1,3 +1,7 @@
+.vscode
+
+**/.DS_Store
+
 /bin/
 /test/tests.*
 /test/coverage.*
