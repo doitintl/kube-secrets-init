@@ -222,11 +222,14 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 		}
 
 		if len(envVars) == 0 {
+			// no environment variables references to AWS secrets
 			continue
 		}
 
+		// set mutated flag
 		mutated = true
 
+		// get container command as defined in PodSpec
 		args := container.Command
 
 		// the container has no explicitly specified command
@@ -247,13 +250,13 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 
 		args = append(args, container.Args...)
 
-		container.Command = []string{"/secrets-init/secrets-init"}
+		container.Command = []string{fmt.Sprintf("%s/secrets-init", mw.volumePath)}
 		container.Args = args
 
 		container.VolumeMounts = append(container.VolumeMounts, []corev1.VolumeMount{
 			{
-				Name:      "secrets-init",
-				MountPath: "/secrets-init/",
+				Name:      mw.volumeName,
+				MountPath: mw.volumePath,
 			},
 		}...)
 
