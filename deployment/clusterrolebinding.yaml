@@ -1,0 +1,14 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: secrets-init-webhook-crb 
+  labels:
+    app: secrets-init-webhook
+subjects:
+- kind: ServiceAccount
+  name: secrets-init-webhook-sa
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: secrets-init-webhook-cr

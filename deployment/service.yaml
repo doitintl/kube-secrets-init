@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: secrets-init-webhook-svc
+  labels:
+    app: secrets-init-webhook
+spec:
+  ports:
+  - port: 443
+    targetPort: 8443
+  selector:
+    app: secrets-init-webhook

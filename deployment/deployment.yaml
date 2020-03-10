@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secrets-init-webhook-deployment
+  labels:
+    app: secrets-init-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secrets-init-webhook
+  template:
+    metadata:
+      labels:
+        app: secrets-init-webhook
+    spec:
+      containers:
+        - name: secrets-init-webhook
+          image: doitintl/kube-secrets-init
+          imagePullPolicy: Always
+          args:
+            - --log-level=debug
+            - server
+            - --tls-cert-file=/etc/webhook/certs/cert.pem
+            - --tls-private-key-file=/etc/webhook/certs/key.pem
+            - --pull-policy=Always
+            # uncomment for Google Cloud Secrets Manager
+            # - --provider=google
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      serviceAccountName: secrets-init-webhook-sa
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: secrets-init-webhook-certs

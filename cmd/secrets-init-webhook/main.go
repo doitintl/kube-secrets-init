@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/doitintl/kube-secrets-init/cmd/aws-secrets-webhook/registry"
+	"github.com/doitintl/kube-secrets-init/cmd/secrets-init-webhook/registry"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -37,7 +37,14 @@ const (
 	binVolumeName = "secrets-init-bin"
 
 	// binVolumePath is the mount path where the secrets-init binary can be found.
-	binVolumePath = "/secrets-init/bin/"
+	binVolumePath = "/secrets-init/bin"
+)
+
+const (
+	requestsCPU    = "5m"
+	requestsMemory = "10Mi"
+	limitsCPU      = "20m"
+	limitsMemory   = "50Mi"
 )
 
 var (
@@ -50,6 +57,7 @@ var (
 type mutatingWebhook struct {
 	k8sClient  kubernetes.Interface
 	registry   registry.ImageRegistry
+	provider   string
 	image      string
 	pullPolicy string
 	volumeName string
@@ -72,35 +80,38 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveMetrics(addr string) {
-	logger.Infof("Telemetry on http://%s", addr)
+	logger.Infof("telemetry on http://%s", addr)
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	err := http.ListenAndServe(addr, mux)
 	if err != nil {
-		logger.Fatalf("error serving telemetry: %s", err)
+		logger.WithError(err).Fatal("error serving telemetry")
 	}
 }
 
 func handlerFor(config mutating.WebhookConfig, mutator mutating.MutatorFunc, recorder metrics.Recorder, logger *log.Logger) http.Handler {
 	webhook, err := mutating.NewWebhook(config, mutator, nil, recorder, logger)
 	if err != nil {
-		logger.Fatalf("error creating webhook: %s", err)
+		logger.WithError(err).Fatal("error creating webhook")
 	}
 
 	handler, err := whhttp.HandlerFor(webhook)
 	if err != nil {
-		logger.Fatalf("error creating webhook: %s", err)
+		logger.WithError(err).Fatalf("error creating webhook")
 	}
 
 	return handler
 }
 
+// check if value start with AWS or GCP secret prefix
 func hasSecretsPrefix(value string) bool {
-	return strings.HasPrefix(value, "arn:aws:secretsmanager") || (strings.HasPrefix(value, "arn:aws:ssm") && strings.Contains(value, ":parameter/"))
+	return strings.HasPrefix(value, "gcp:secretmanager:") ||
+		strings.HasPrefix(value, "arn:aws:secretsmanager") ||
+		(strings.HasPrefix(value, "arn:aws:ssm") && strings.Contains(value, ":parameter/"))
 }
 
-func (mw *mutatingWebhook) getDataFromConfigmap(cmName string, ns string) (map[string]string, error) {
+func (mw *mutatingWebhook) getDataFromConfigmap(cmName, ns string) (map[string]string, error) {
 	configMap, err := mw.k8sClient.CoreV1().ConfigMaps(ns).Get(cmName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -108,7 +119,7 @@ func (mw *mutatingWebhook) getDataFromConfigmap(cmName string, ns string) (map[s
 	return configMap.Data, nil
 }
 
-func (mw *mutatingWebhook) getDataFromSecret(secretName string, ns string) (map[string][]byte, error) {
+func (mw *mutatingWebhook) getDataFromSecret(secretName, ns string) (map[string][]byte, error) {
 	secret, err := mw.k8sClient.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -116,6 +127,7 @@ func (mw *mutatingWebhook) getDataFromSecret(secretName string, ns string) (map[
 	return secret.Data, nil
 }
 
+//nolint:gocyclo
 func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns string) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 
@@ -193,8 +205,11 @@ func (mw *mutatingWebhook) lookForValueFrom(env corev1.EnvVar, ns string) (*core
 }
 
 func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSpec *corev1.PodSpec, ns string) (bool, error) {
-	mutated := false
+	if len(containers) == 0 {
+		return false, nil
+	}
 
+	var mutated bool
 	for i, container := range containers {
 		var envVars []corev1.EnvVar
 		if len(container.EnvFrom) > 0 {
@@ -222,7 +237,7 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 		}
 
 		if len(envVars) == 0 {
-			// no environment variables references to AWS secrets
+			// no environment variables referenced to GCP secret or AWS secret or SSM parameter
 			continue
 		}
 
@@ -234,7 +249,8 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 
 		// the container has no explicitly specified command
 		if len(args) == 0 {
-			imageConfig, err := mw.registry.GetImageConfig(mw.k8sClient, ns, &container, podSpec)
+			c := container
+			imageConfig, err := mw.registry.GetImageConfig(mw.k8sClient, ns, &c, podSpec)
 			if err != nil {
 				return false, err
 			}
@@ -250,7 +266,7 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 
 		args = append(args, container.Args...)
 
-		container.Command = []string{fmt.Sprintf("%s/secrets-init", mw.volumePath)}
+		container.Command = []string{fmt.Sprintf("%s/secrets-init --provider=%s", mw.volumePath, mw.provider)}
 		container.Args = args
 
 		container.VolumeMounts = append(container.VolumeMounts, []corev1.VolumeMount{
@@ -266,19 +282,16 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 	return mutated, nil
 }
 
-func (mw *mutatingWebhook) mutatePod(pod *corev1.Pod, ns string, image string, pullPolicy string, volumeName string, volumePath string, dryRun bool) error {
-
-	logger.Debugf("Successfully connected to the API")
-
+func (mw *mutatingWebhook) mutatePod(pod *corev1.Pod, ns string, dryRun bool) error {
 	initContainersMutated, err := mw.mutateContainers(pod.Spec.InitContainers, &pod.Spec, ns)
 	if err != nil {
 		return err
 	}
 
 	if initContainersMutated {
-		logger.Debugf("Successfully mutated pod init containers")
+		logger.Debug("successfully mutated pod init containers")
 	} else {
-		logger.Debugf("No pod init containers were mutated")
+		logger.Debug("no pod init containers were mutated")
 	}
 
 	containersMutated, err := mw.mutateContainers(pod.Spec.Containers, &pod.Spec, ns)
@@ -287,70 +300,59 @@ func (mw *mutatingWebhook) mutatePod(pod *corev1.Pod, ns string, image string, p
 	}
 
 	if containersMutated {
-		logger.Debugf("Successfully mutated pod containers")
+		logger.Debug("successfully mutated pod containers")
 	} else {
-		logger.Debugf("No pod containers were mutated")
+		logger.Debug("no pod containers were mutated")
 	}
 
-	containerEnvVars := []corev1.EnvVar{}
-	containerVolMounts := []corev1.VolumeMount{
-		{
-			Name:      volumeName,
-			MountPath: volumePath,
-		},
-	}
-
-	if initContainersMutated || containersMutated {
-		pod.Spec.InitContainers = append(getInitContainers(pod.Spec.Containers, pod.Spec.SecurityContext, initContainersMutated, containersMutated, containerEnvVars, containerVolMounts, image, pullPolicy, volumeName, volumePath), pod.Spec.InitContainers...)
-		logger.Debugf("Successfully appended pod init containers to spec")
-
-		pod.Spec.Volumes = append(pod.Spec.Volumes, getVolumes(pod.Spec.Volumes, volumeName, logger)...)
-		logger.Debugf("Successfully appended pod spec volumes")
+	if (initContainersMutated || containersMutated) && !dryRun {
+		// prepend secrets-init container (as the first init container)
+		pod.Spec.InitContainers = append(
+			[]corev1.Container{getSecretsInitContainer(mw.image, mw.pullPolicy, mw.volumeName, mw.volumePath)},
+			pod.Spec.InitContainers...)
+		logger.Debug("successfully prepended pod init containers to spec")
+		// append volume
+		pod.Spec.Volumes = append(pod.Spec.Volumes, getSecretsInitVolume(mw.volumeName))
+		logger.Debug("successfully appended pod spec volumes")
 	}
 
 	return nil
 }
 
-func getVolumes(existingVolumes []corev1.Volume, volumeName string, logger *log.Logger) []corev1.Volume {
-	logger.Debugf("Add generic volumes to podspec")
-	volumes := []corev1.Volume{
-		{
-			Name: volumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{
-					Medium: corev1.StorageMediumMemory,
-				},
+func getSecretsInitVolume(volumeName string) corev1.Volume {
+	return corev1.Volume{
+		Name: volumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{
+				Medium: corev1.StorageMediumMemory,
 			},
 		},
 	}
-	return volumes
 }
 
-func getInitContainers(originalContainers []corev1.Container, podSecurityContext *corev1.PodSecurityContext, initContainersMutated bool, containersMutated bool, containerEnvVars []corev1.EnvVar, containerVolMounts []corev1.VolumeMount, image string, pullPolicy string, volumeName string, volumePath string) []corev1.Container {
-	var containers = []corev1.Container{}
-
-	if initContainersMutated || containersMutated {
-		containers = append(containers, corev1.Container{
-			Name:            "copy-secrets-init",
-			Image:           image,
-			ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-			Command:         []string{"sh", "-c", fmt.Sprintf("cp /usr/local/bin/secrets-init %s", volumePath)},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      volumeName,
-					MountPath: volumePath,
-				},
+func getSecretsInitContainer(image, pullPolicy, volumeName, volumePath string) corev1.Container {
+	return corev1.Container{
+		Name:            "copy-secrets-init",
+		Image:           image,
+		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+		Command:         []string{"sh", "-c", fmt.Sprintf("cp /usr/local/bin/secrets-init %s", volumePath)},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      volumeName,
+				MountPath: volumePath,
 			},
-			Resources: corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("50m"),
-					corev1.ResourceMemory: resource.MustParse("64Mi"),
-				},
+		},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(requestsCPU),
+				corev1.ResourceMemory: resource.MustParse(requestsMemory),
 			},
-		})
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(limitsCPU),
+				corev1.ResourceMemory: resource.MustParse(limitsMemory),
+			},
+		},
 	}
-
-	return containers
 }
 
 func init() {
@@ -388,17 +390,7 @@ func before(c *cli.Context) error {
 func (mw *mutatingWebhook) secretsMutator(ctx context.Context, obj metav1.Object) (bool, error) {
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		return false, mw.mutatePod(v, whcontext.GetAdmissionRequest(ctx).Namespace, mw.image, mw.pullPolicy, mw.volumeName, mw.volumePath, whcontext.IsAdmissionRequestDryRun(ctx))
-	// case *corev1.Secret:
-	// 	if _, ok := obj.GetAnnotations()["vault.security.banzaicloud.io/vault-addr"]; ok {
-	// 		return false, mutateSecret(v, parseVaultConfig(obj), whcontext.GetAdmissionRequest(ctx).Namespace)
-	// 	}
-	// 	return false, nil
-	// case *corev1.ConfigMap:
-	// 	if _, ok := obj.GetAnnotations()["vault.security.banzaicloud.io/mutate-configmap"]; ok {
-	// 		return false, mutateConfigMap(v, parseVaultConfig(obj), whcontext.GetAdmissionRequest(ctx).Namespace)
-	// 	}
-	// 	return false, nil
+		return false, mw.mutatePod(v, whcontext.GetAdmissionRequest(ctx).Namespace, whcontext.IsAdmissionRequestDryRun(ctx))
 	default:
 		return false, nil
 	}
@@ -408,19 +400,24 @@ func (mw *mutatingWebhook) secretsMutator(ctx context.Context, obj metav1.Object
 func runWebhook(c *cli.Context) error {
 	k8sClient, err := newK8SClient()
 	if err != nil {
-		logger.Fatalf("error creating k8s client: %s", err)
+		logger.WithError(err).Fatalf("error creating k8s client")
 	}
 
-	mutatingWebhook := mutatingWebhook{
-		k8sClient:  k8sClient,
-		registry:   registry.NewRegistry(c.Bool("registry-skip-verify"), c.String("docker-config-json-key"), c.String("default-image-pull-secret"), c.String("default-image-pull-secret-namespace")),
+	webhook := mutatingWebhook{
+		k8sClient: k8sClient,
+		registry: registry.NewRegistry(
+			c.Bool("registry-skip-verify"),
+			c.String("docker-config-json-key"),
+			c.String("default-image-pull-secret"),
+			c.String("default-image-pull-secret-namespace")),
+		provider:   c.String("provider"),
 		image:      c.String("image"),
 		pullPolicy: c.String("pull-policy"),
 		volumeName: c.String("volume-name"),
 		volumePath: c.String("volume-path"),
 	}
 
-	mutator := mutating.MutatorFunc(mutatingWebhook.secretsMutator)
+	mutator := mutating.MutatorFunc(webhook.secretsMutator)
 	metricsRecorder := metrics.NewPrometheus(prometheus.DefaultRegisterer)
 
 	podHandler := handlerFor(mutating.WebhookConfig{Name: "init-secrets-pods", Obj: &corev1.Pod{}}, mutator, metricsRecorder, logger)
@@ -442,20 +439,21 @@ func runWebhook(c *cli.Context) error {
 	}
 
 	if tlsCertFile == "" && tlsPrivateKeyFile == "" {
-		logger.Infof("Listening on http://%s", listenAddress)
+		logger.Infof("listening on http://%s", listenAddress)
 		err = http.ListenAndServe(listenAddress, mux)
 	} else {
-		logger.Infof("Listening on https://%s", listenAddress)
+		logger.Infof("listening on https://%s", listenAddress)
 		err = http.ListenAndServeTLS(listenAddress, tlsCertFile, tlsPrivateKeyFile, mux)
 	}
 
 	if err != nil {
-		logger.Fatalf("error serving webhook: %s", err)
+		logger.WithError(err).Fatal("error serving webhook")
 	}
 
 	return nil
 }
 
+//nolint:funlen
 func main() {
 	cli.VersionPrinter = func(c *cli.Context) {
 		fmt.Printf("version: %s\n", c.App.Version)
@@ -468,7 +466,7 @@ func main() {
 	app.Authors = []cli.Author{
 		{
 			Name:  "Alexei Ledenev",
-			Email: "alexei.led@gmail.com",
+			Email: "alexei@doit-intl.com",
 		},
 	}
 	app.Usage = "kube-secrets-init is a Kubernetes mutation controller that injects a sidecar init container with a secrets-init on-board"
@@ -487,7 +485,7 @@ func main() {
 		},
 	}
 	app.Commands = []cli.Command{
-		cli.Command{
+		{
 			Name: "server",
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -543,6 +541,11 @@ func main() {
 					Name:  "volume-path",
 					Usage: "mount volume path",
 					Value: binVolumePath,
+				},
+				cli.StringFlag{
+					Name:  "provider, p",
+					Usage: "supported secrets manager provider ['aws', 'google']",
+					Value: "aws",
 				},
 			},
 			Usage:       "mutation admission webhook",

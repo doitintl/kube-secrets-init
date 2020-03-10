@@ -1,8 +1,17 @@
-.vscode
+cover
+**/.cover
+.git
+.gtm
+
+.idea
+**/.vscode
+
+.bin
+**/.bin
+**/test
+**/*-bundle.yaml
+.env
 
 **/.DS_Store
-
-/bin/
-/test/tests.*
-/test/coverage.*
-/go.sum
+**/debug
+**/debug.test

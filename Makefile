@@ -1,12 +1,13 @@
 MODULE   = $(shell env GO111MODULE=on $(GO) list -m)
 DATE    ?= $(shell date +%FT%T%z)
-VERSION ?= $(shell git describe --tags --always --dirty --match=v* 2> /dev/null || \
+VERSION ?= $(shell git describe --tags --always --dirty --match="v*" 2> /dev/null || \
 			cat $(CURDIR)/.version 2> /dev/null || echo v0)
 PKGS     = $(or $(PKG),$(shell env GO111MODULE=on $(GO) list ./...))
 TESTPKGS = $(shell env GO111MODULE=on $(GO) list -f \
 			'{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' \
 			$(PKGS))
-BIN      = $(CURDIR)/bin
+BIN      = $(CURDIR)/.bin
+GOLANGCI_LINT_CONFIG = $(CURDIR)/.golangci.yaml
 
 GO      = go
 TIMEOUT = 15
@@ -15,13 +16,15 @@ Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
 
 export GO111MODULE=on
+export CGO_ENABLED=0
+export GOPROXY=https://proxy.golang.org
 
 .PHONY: all
-all: fmt lint | $(BIN) ; $(info $(M) building executable…) @ ## Build program binary
+all: fmt lint test | $(BIN) ; $(info $(M) building executable…) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.Version=$(VERSION) -X main.BuildDate=$(DATE)' \
-		-o $(BIN)/$(basename $(MODULE)) ./cmd/aws-secrets-webhook/main.go
+		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook
 
 # Tools
 
@@ -33,9 +36,6 @@ $(BIN)/%: | $(BIN) ; $(info $(M) building $(PACKAGE)…)
 		|| ret=$$?; \
 	   rm -rf $$tmp ; exit $$ret
 
-GOLINT = $(BIN)/golint
-$(BIN)/golint: PACKAGE=golang.org/x/lint/golint
-
 GOCOV = $(BIN)/gocov
 $(BIN)/gocov: PACKAGE=github.com/axw/gocov/...
 
@@ -44,6 +44,9 @@ $(BIN)/gocov-xml: PACKAGE=github.com/AlekSi/gocov-xml
 
 GO2XUNIT = $(BIN)/go2xunit
 $(BIN)/go2xunit: PACKAGE=github.com/tebeka/go2xunit
+
+GOLANGCI_LINT = $(BIN)/golangci-lint
+$(BIN)/golangci-lint: PACKAGE=github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # Tests
 
@@ -82,8 +85,8 @@ test-coverage: fmt lint test-coverage-tools ; $(info $(M) running coverage tests
 	$Q $(GOCOV) convert $(COVERAGE_PROFILE) | $(GOCOVXML) > $(COVERAGE_XML)
 
 .PHONY: lint
-lint: | $(GOLINT) ; $(info $(M) running golint…) @ ## Run golint
-	$Q $(GOLINT) -set_exit_status $(PKGS)
+lint: | $(GOLANGCI_LINT) ; $(info $(M) running golangci-lint…) @ ## Run golangci-lint
+	$Q $(GOLANGCI_LINT) run -v -c $(GOLANGCI_LINT_CONFIG) ./...
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files

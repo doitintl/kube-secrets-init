@@ -34,10 +34,14 @@ type Registry struct {
 }
 
 // NewRegistry creates and initializes registry
-func NewRegistry(registrySkipVerify bool, dockerConfigJSONKey string, defaultImagePullSecret string, defaultImagePullSecretNamespace string) ImageRegistry {
-	var r *Registry = &Registry{}
-	r.imageCache = NewInMemoryImageCache()
-	return r
+func NewRegistry(skipVerify bool, configJSONKey, imagePullSecret, imagePullSecretNamespace string) ImageRegistry {
+	return &Registry{
+		imageCache:                      NewInMemoryImageCache(),
+		registrySkipVerify:              skipVerify,
+		dockerConfigJSONKey:             configJSONKey,
+		defaultImagePullSecret:          imagePullSecret,
+		defaultImagePullSecretNamespace: imagePullSecretNamespace,
+	}
 }
 
 // DockerCreds Docker credentials
@@ -45,18 +49,20 @@ type DockerCreds struct {
 	Auths map[string]dockerTypes.AuthConfig `json:"auths"`
 }
 
+//nolint:lll
 // GetImageConfig returns entrypoint and command of container
-func (r *Registry) GetImageConfig(
-	clientset kubernetes.Interface,
-	namespace string,
-	container *corev1.Container,
-	podSpec *corev1.PodSpec) (*imagev1.ImageConfig, error) {
-
+func (r *Registry) GetImageConfig(clientset kubernetes.Interface, namespace string, container *corev1.Container, podSpec *corev1.PodSpec) (*imagev1.ImageConfig, error) {
 	if imageConfig := r.imageCache.Get(container.Image); imageConfig != nil {
 		return imageConfig, nil
 	}
 
-	containerInfo := ContainerInfo{Namespace: namespace, clientset: clientset, DockerConfigJSONKey: r.dockerConfigJSONKey, DefaultImagePullSecret: r.defaultImagePullSecret, DefaultImagePullSecretNamespace: r.defaultImagePullSecretNamespace}
+	containerInfo := ContainerInfo{
+		Namespace:                       namespace,
+		clientset:                       clientset,
+		DockerConfigJSONKey:             r.dockerConfigJSONKey,
+		DefaultImagePullSecret:          r.defaultImagePullSecret,
+		DefaultImagePullSecretNamespace: r.defaultImagePullSecretNamespace,
+	}
 
 	err := containerInfo.Collect(container, podSpec)
 	if err != nil {
@@ -64,7 +70,7 @@ func (r *Registry) GetImageConfig(
 	}
 
 	// using registry
-	imageConfig, err := getImageBlob(containerInfo, r.registrySkipVerify)
+	imageConfig, err := getImageBlob(&containerInfo, r.registrySkipVerify)
 	if imageConfig != nil {
 		r.imageCache.Put(container.Image, imageConfig)
 	}
@@ -73,7 +79,7 @@ func (r *Registry) GetImageConfig(
 }
 
 // GetImageBlob download image blob from registry
-func getImageBlob(container ContainerInfo, registrySkipVerify bool) (*imagev1.ImageConfig, error) {
+func getImageBlob(container *ContainerInfo, registrySkipVerify bool) (*imagev1.ImageConfig, error) {
 	imageName, reference := parseContainerImage(container.Image)
 
 	var hub *registry.Registry
@@ -191,16 +197,17 @@ func (k *ContainerInfo) parseDockerConfig(dockerCreds DockerCreds) (bool, error)
 					return false, fmt.Errorf("unexpected number of elements in auth field for registry %s: %d (expected 2)", registryName, len(auth))
 				}
 				// decodedAuth is something like ":xxx"
-				if len(auth[0]) <= 0 {
+				if auth[0] == "" {
 					return false, fmt.Errorf("username element of auth field for registry %s missing", registryName)
 				}
 				// decodedAuth is something like "xxx:"
-				if len(auth[1]) <= 0 {
+				if auth[1] == "" {
 					return false, fmt.Errorf("password element of auth field for registry %s missing", registryName)
 				}
 				k.RegistryUsername = auth[0]
 				k.RegistryPassword = auth[1]
 			} else {
+				//nolint:lll
 				// the auths section has an entry for the registry, but it neither contains
 				// username/password fields nor an auth field, fail
 				return false, fmt.Errorf("found %s in imagePullSecrets but it contains no usable credentials; either username/password fields or an auth field are required", registryName)
@@ -230,7 +237,7 @@ func (k *ContainerInfo) fixDockerHubImage(image string) string {
 	return image
 }
 
-func (k *ContainerInfo) checkImagePullSecret(namespace string, secret string) (bool, error) {
+func (k *ContainerInfo) checkImagePullSecret(namespace, secret string) (bool, error) {
 	data, err := k.readDockerSecret(namespace, secret)
 	if err != nil {
 		return false, fmt.Errorf("cannot read imagePullSecret '%s' in namespace '%s': %s", secret, namespace, err.Error())
@@ -248,15 +255,13 @@ func (k *ContainerInfo) checkImagePullSecret(namespace string, secret string) (b
 
 // Collect reads information from k8s and load them into the structure
 func (k *ContainerInfo) Collect(container *corev1.Container, podSpec *corev1.PodSpec) error {
-
 	k.Image = k.fixDockerHubImage(container.Image)
 
 	var err error
 	found := false
 	// Check for registry credentials in imagePullSecrets attached to the pod
 	// ImagePullSecrets attached to ServiceAccounts do not have to be considered
-	// explicitely as ServiceAccount ImagePullSecrets are automatically attached
-	// to a pod.
+	// explicitly as ServiceAccount ImagePullSecrets are automatically attached to a pod.
 	for _, imagePullSecret := range podSpec.ImagePullSecrets {
 		found, err = k.checkImagePullSecret(k.Namespace, imagePullSecret.Name)
 		if err != nil {
@@ -272,7 +277,7 @@ func (k *ContainerInfo) Collect(container *corev1.Container, podSpec *corev1.Pod
 	// Try to find matching registry credentials in the default imagePullSecret if one was provided.
 	if !found {
 		if len(k.DefaultImagePullSecret) > 0 && len(k.DefaultImagePullSecretNamespace) > 0 {
-			found, err = k.checkImagePullSecret(k.DefaultImagePullSecretNamespace, k.DefaultImagePullSecret)
+			_, err = k.checkImagePullSecret(k.DefaultImagePullSecretNamespace, k.DefaultImagePullSecret)
 			if err != nil {
 				return err
 			}
