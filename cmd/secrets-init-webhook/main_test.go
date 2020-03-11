@@ -324,6 +324,7 @@ func makeConfigMap(namespace, name string, data map[string]string) *corev1.Confi
 	}
 }
 
+//nolint:funlen
 func Test_mutatingWebhook_lookForEnvFrom(t *testing.T) {
 	type fields struct {
 		k8sClient  kubernetes.Interface
