@@ -80,8 +80,8 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 				{
 					Name:         "TestContainer",
 					Image:        "test-image",
-					Command:      []string{fmt.Sprintf("%s/secrets-init --provider=%s", binVolumePath, "aws")},
-					Args:         []string{"echo"},
+					Command:      []string{fmt.Sprintf("%s/secrets-init", binVolumePath)},
+					Args:         []string{"--provider=aws", "echo"},
 					VolumeMounts: []corev1.VolumeMount{{Name: binVolumeName, MountPath: binVolumePath}},
 					Env: []corev1.EnvVar{
 						{
@@ -126,8 +126,8 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 				{
 					Name:         "TestContainer",
 					Image:        "test-image",
-					Command:      []string{fmt.Sprintf("%s/secrets-init --provider=%s", binVolumePath, "google")},
-					Args:         []string{"echo", "test"},
+					Command:      []string{fmt.Sprintf("%s/secrets-init", binVolumePath)},
+					Args:         []string{"--provider=google", "echo", "test"},
 					VolumeMounts: []corev1.VolumeMount{{Name: binVolumeName, MountPath: binVolumePath}},
 					Env: []corev1.EnvVar{
 						{
@@ -173,8 +173,8 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 				{
 					Name:         "TestContainer",
 					Image:        "test-image",
-					Command:      []string{fmt.Sprintf("%s/secrets-init --provider=%s", binVolumePath, "aws")},
-					Args:         []string{"/bin/zsh", "-c", "echo test"},
+					Command:      []string{fmt.Sprintf("%s/secrets-init", binVolumePath)},
+					Args:         []string{"--provider=aws", "/bin/zsh", "-c", "echo test"},
 					VolumeMounts: []corev1.VolumeMount{{Name: binVolumeName, MountPath: binVolumePath}},
 					Env: []corev1.EnvVar{
 						{
@@ -219,8 +219,8 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 				{
 					Name:         "TestContainer",
 					Image:        "test-image",
-					Command:      []string{fmt.Sprintf("%s/secrets-init --provider=%s", binVolumePath, "aws")},
-					Args:         []string{"test-cmd"},
+					Command:      []string{fmt.Sprintf("%s/secrets-init", binVolumePath)},
+					Args:         []string{"--provider=aws", "test-cmd"},
 					VolumeMounts: []corev1.VolumeMount{{Name: binVolumeName, MountPath: binVolumePath}},
 					Env: []corev1.EnvVar{
 						{

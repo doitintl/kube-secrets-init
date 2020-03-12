@@ -266,8 +266,8 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 
 		args = append(args, container.Args...)
 
-		container.Command = []string{fmt.Sprintf("%s/secrets-init --provider=%s", mw.volumePath, mw.provider)}
-		container.Args = args
+		container.Command = []string{fmt.Sprintf("%s/secrets-init", mw.volumePath)}
+		container.Args = append([]string{fmt.Sprintf("--provider=%s", mw.provider)}, args...)
 
 		container.VolumeMounts = append(container.VolumeMounts, []corev1.VolumeMount{
 			{
@@ -335,7 +335,8 @@ func getSecretsInitContainer(image, pullPolicy, volumeName, volumePath string) c
 		Name:            "copy-secrets-init",
 		Image:           image,
 		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-		Command:         []string{"sh", "-c", fmt.Sprintf("cp /usr/local/bin/secrets-init %s", volumePath)},
+		Command:         []string{"sh"},
+		Args:            []string{"-c", fmt.Sprintf("'cp /usr/local/bin/secrets-init %s'", volumePath)},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      volumeName,
