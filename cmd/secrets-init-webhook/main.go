@@ -335,8 +335,7 @@ func getSecretsInitContainer(image, pullPolicy, volumeName, volumePath string) c
 		Name:            "copy-secrets-init",
 		Image:           image,
 		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-		Command:         []string{"sh"},
-		Args:            []string{"-c", fmt.Sprintf("'cp /usr/local/bin/secrets-init %s'", volumePath)},
+		Args:            []string{"cp", "/usr/local/bin/secrets-init", volumePath},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      volumeName,
