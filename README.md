@@ -64,7 +64,7 @@ This can be achieved by assigning IAM Role to Kubernetes Pod. It's possible to a
 
 #### Google Cloud
 
-In order to resolve Google secrets from Google Secret Manager, `secrets-init` should run under IAM role that has permission to access desired secrets.
+In order to resolve Google secrets from Google Secret Manager, `secrets-init` should run under IAM role that has permission to access desired secrets. For example, you can assign the following 2 predefined Google IAM roles to a Google Service Account: `Secret Manager Viewer` and `Secret Manager Secret Accessor` role.
 
 This can be achieved by assigning IAM Role to Kubernetes Pod with [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity). It's possible to assign IAM Role to GCE instance, where container is running, but this option is less secure.
 

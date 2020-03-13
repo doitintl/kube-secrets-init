@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: printenv-job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      # create K8s secrets-init-demo-sa  SA and bind it to GCP Service Account that
+      # has read permissions to Google Secret Manager.
+      # For example: Secret Manager Viewer and Secret Manager Secret Accessor
+      serviceAccountName: secrets-init-demo-sa 
+      containers:
+      - image: alpine:3
+        name: print-env
+        env:
+          - name: NOT_A_SECRET
+            value: hello
+          - name: TOP_SECRET
+            value: gcp:secretmanager:projects/240804453656/secrets/test-secret
+        args:
+          - printenv
+          - NOT_A_SECRET
+          - TOP_SECRET

@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: printenv-job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      # create K8s iam-secrets-manager-ro SA and bind it to AWS IAM role
+      # with permissions to access AWS Secrets Manager and AWS SSM Parameter Store
+      serviceAccountName: iam-secrets-manager-ro
+      containers:
+      - image: alpine:3
+        name: print-env
+        env:
+          - name: AWS_REGION
+            value: us-west-2
+          - name: NOT_A_SECRET
+            value: hello
+          - name: TOP_SECRET
+            value: arn:aws:secretsmanager:us-west-2:906364353610:secret:myamazingsupersecret-Bccaq7
+        args:
+          - printenv
+          - NOT_A_SECRET
+          - TOP_SECRET

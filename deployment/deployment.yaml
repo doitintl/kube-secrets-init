@@ -26,6 +26,8 @@ spec:
             - --pull-policy=Always
             # uncomment for Google Cloud Secrets Manager
             # - --provider=google
+            # (optional: default parameter) uncomment for AWS Secrets Manager and SSM Parameter Store
+            # - --provider=aws
           volumeMounts:
             - name: webhook-certs
               mountPath: /etc/webhook/certs
