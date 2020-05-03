@@ -8,6 +8,9 @@ spec:
       restartPolicy: Never
       # create K8s iam-secrets-manager-ro SA and bind it to AWS IAM role
       # with permissions to access AWS Secrets Manager and AWS SSM Parameter Store
+      #
+      #   kubectl create serviceaccount --namespace default iam-secrets-manager-ro
+      #   kubectl annotate serviceaccounts iam-secrets-manager-ro amazonaws.com/role-arn=<ROLE-ARN>
       serviceAccountName: iam-secrets-manager-ro
       containers:
       - image: alpine:3
@@ -19,7 +22,34 @@ spec:
             value: hello
           - name: TOP_SECRET
             value: arn:aws:secretsmanager:us-west-2:906364353610:secret:myamazingsupersecret-Bccaq7
+          - name: FROM_K8S_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: secret-from-aws
+                key: top-secret
+          - name: FROM_K8S_CONFIGMAP
+            valueFrom:
+              configMapKeyRef:
+                name: cm-from-aws
+                key: top-secret
         args:
           - printenv
           - NOT_A_SECRET
           - TOP_SECRET
+          - FROM_K8S_SECRET
+          - FROM_K8S_CONFIGMAP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-from-aws
+data:
+  top-secret: YXJuOmF3czpzZWNyZXRzbWFuYWdlcjp1cy13ZXN0LTI6OTA2MzY0MzUzNjEwOnNlY3JldDpteWFtYXppbmdzdXBlcnNlY3JldC1CY2NhcTc=
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-from-aws
+data:
+  top-secret: arn:aws:secretsmanager:us-west-2:906364353610:secret:myamazingsupersecret-Bccaq7

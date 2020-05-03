@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/doitintl/kube-secrets-init/cmd/secrets-init-webhook/registry"
-	cmp "github.com/google/go-cmp/cmp"
 	imagev1 "github.com/opencontainers/image-spec/specs-go/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,6 +70,61 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 							{
 								Name:  "topsecret",
 								Value: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/topsecret",
+							},
+						},
+					},
+				},
+			},
+			wantedContainers: []corev1.Container{
+				{
+					Name:         "TestContainer",
+					Image:        "test-image",
+					Command:      []string{fmt.Sprintf("%s/secrets-init", binVolumePath)},
+					Args:         []string{"--provider=aws", "echo"},
+					VolumeMounts: []corev1.VolumeMount{{Name: binVolumeName, MountPath: binVolumePath}},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "topsecret",
+							Value: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/topsecret",
+						},
+					},
+				},
+			},
+			mutated: true,
+		},
+		{
+			name: "mutate container with command and secret reference",
+			fields: fields{
+				k8sClient: fake.NewSimpleClientset(
+					makeSecret("test-ns", "test-secret", map[string][]byte{
+						"password": []byte("arn:aws:secretsmanager:us-east-1:123456789012:secret:test/topsecret"),
+					}),
+				),
+				registry: &MockRegistry{
+					Image: imagev1.ImageConfig{},
+				},
+				provider:   "aws",
+				image:      secretsInitImage,
+				volumeName: binVolumeName,
+				volumePath: binVolumePath,
+				pullPolicy: string(corev1.PullIfNotPresent),
+			},
+			args: args{
+				containers: []corev1.Container{
+					{
+						Name:    "TestContainer",
+						Image:   "test-image",
+						Command: []string{"echo"},
+						Args:    nil,
+						Env: []corev1.EnvVar{
+							{
+								Name: "topsecret",
+								ValueFrom: &corev1.EnvVarSource{
+									SecretKeyRef: &corev1.SecretKeySelector{
+										Key:                  "password",
+										LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+									},
+								},
 							},
 						},
 					},
@@ -295,9 +349,6 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 			if got != tt.mutated {
 				t.Errorf("mutatingWebhook.mutateContainers() = %v, want %v", got, tt.mutated)
 			}
-			if !cmp.Equal(tt.args.containers, tt.wantedContainers) {
-				t.Errorf("mutatingWebhook.mutateContainers() = diff %v", cmp.Diff(tt.args.containers, tt.wantedContainers))
-			}
 		})
 	}
 }
@@ -310,6 +361,7 @@ func makeSecret(namespace, name string, data map[string][]byte) *corev1.Secret {
 			Namespace: namespace,
 		},
 		Data: data,
+		Type: corev1.SecretTypeOpaque,
 	}
 }
 
@@ -455,6 +507,159 @@ func Test_mutatingWebhook_lookForEnvFrom(t *testing.T) {
 				volumePath: tt.fields.volumePath,
 			}
 			got, err := mw.lookForEnvFrom(tt.args.envFrom, tt.args.ns)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("mutatingWebhook.lookForEnvFrom() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("mutatingWebhook.lookForEnvFrom() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+//nolint:funlen
+func Test_mutatingWebhook_lookForValueFrom(t *testing.T) {
+	type fields struct {
+		k8sClient  kubernetes.Interface
+		provider   string
+		image      string
+		pullPolicy string
+		volumeName string
+		volumePath string
+	}
+	type args struct {
+		envVar corev1.EnvVar
+		ns     string //nolint:gofmt
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *corev1.EnvVar
+		wantErr bool
+	}{
+		{
+			name: "get value from secret",
+			fields: fields{
+				k8sClient: fake.NewSimpleClientset(
+					makeSecret("test-ns", "test-secret", map[string][]byte{
+						"password": []byte("arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret"),
+					}),
+				),
+			},
+			args: args{
+				ns: "test-ns",
+				envVar: corev1.EnvVar{
+					Name: "PASSWORD",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key:                  "password",
+							LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+						},
+					},
+				},
+			},
+			want: &corev1.EnvVar{
+				Name:  "PASSWORD",
+				Value: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret",
+			},
+		},
+		{
+			name: "get value from secret, ignore non-cloud secret",
+			fields: fields{
+				k8sClient: fake.NewSimpleClientset(
+					makeSecret("test-ns", "test-secret", map[string][]byte{
+						"password": []byte("arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret"),
+						"text":     []byte("ignore me"),
+					}),
+				),
+			},
+			args: args{
+				ns: "test-ns",
+				envVar: corev1.EnvVar{
+					Name: "PASSWORD",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key:                  "password",
+							LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+						},
+					},
+				},
+			},
+			want: &corev1.EnvVar{
+
+				Name:  "PASSWORD",
+				Value: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret",
+			},
+		},
+		{
+			name: "get value from configmap",
+			fields: fields{
+				k8sClient: fake.NewSimpleClientset(
+					makeConfigMap("test-ns", "test-secret", map[string]string{
+						"password": "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret",
+					}),
+				),
+			},
+			args: args{
+				ns: "test-ns",
+				envVar: corev1.EnvVar{
+					Name: "PASSWORD",
+					ValueFrom: &corev1.EnvVarSource{
+						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+							Key:                  "password",
+							LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+						},
+					},
+				},
+			},
+			want: &corev1.EnvVar{
+
+				Name:  "PASSWORD",
+				Value: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret",
+			},
+		},
+		{
+			name: "get value from configmap, ignore non-cloud configmap",
+			fields: fields{
+				k8sClient: fake.NewSimpleClientset(
+					makeConfigMap("test-ns", "test-secret", map[string]string{
+						"password": "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret",
+						"text":     "ignore me",
+					}),
+				),
+			},
+			args: args{
+				ns: "test-ns",
+				envVar: corev1.EnvVar{
+					Name: "PASSWORD",
+					ValueFrom: &corev1.EnvVarSource{
+						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+							Key:                  "password",
+							LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+						},
+					},
+				},
+			},
+			want: &corev1.EnvVar{
+
+				Name:  "PASSWORD",
+				Value: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test/secret",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mw := &mutatingWebhook{
+				k8sClient:  tt.fields.k8sClient,
+				provider:   tt.fields.provider,
+				image:      tt.fields.image,
+				pullPolicy: tt.fields.pullPolicy,
+				volumeName: tt.fields.volumeName,
+				volumePath: tt.fields.volumePath,
+			}
+			got, err := mw.lookForValueFrom(tt.args.envVar, tt.args.ns)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("mutatingWebhook.lookForEnvFrom() error = %v, wantErr %v", err, tt.wantErr)
 				return
