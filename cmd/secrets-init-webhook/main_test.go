@@ -354,6 +354,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 }
 
 // helper function - make K8s Secret
+//nolint:unparam
 func makeSecret(namespace, name string, data map[string][]byte) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -366,6 +367,7 @@ func makeSecret(namespace, name string, data map[string][]byte) *corev1.Secret {
 }
 
 // helper function - make K8s ConfigMap
+//nolint:unparam
 func makeConfigMap(namespace, name string, data map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -496,6 +498,7 @@ func Test_mutatingWebhook_lookForEnvFrom(t *testing.T) {
 			},
 		},
 	}
+	//nolint:dupl
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mw := &mutatingWebhook{
@@ -649,6 +652,7 @@ func Test_mutatingWebhook_lookForValueFrom(t *testing.T) {
 			},
 		},
 	}
+	//nolint:dupl
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mw := &mutatingWebhook{
