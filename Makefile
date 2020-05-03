@@ -84,7 +84,7 @@ test-coverage: fmt lint test-coverage-tools ; $(info $(M) running coverage tests
 
 .PHONY: lint
 lint: | $(info $(M) running golangci-lint) ## Run golangci-lint
-	$Q $(GOLANGCI_LINT) run -v -c $(GOLANGCI_LINT_CONFIG) ./cmd/...
+	$Q $(GOLANGCI_LINT) run --timeout=5m -v -c $(GOLANGCI_LINT_CONFIG) ./cmd/...
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt) @ ## Run gofmt on all source files
