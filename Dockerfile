@@ -14,6 +14,8 @@ COPY --from=golangci/golangci-lint:v1.24-alpine /usr/bin/golangci-lint /usr/bin
 #
 FROM builder as build
 
+ARG target=all
+
 # set working directory
 RUN mkdir -p /go/src/kube-secrets-init
 WORKDIR /go/src/kube-secrets-init
@@ -27,7 +29,7 @@ RUN --mount=type=cache,target=/go/mod go mod download
 COPY . .
 
 # build
-RUN make
+RUN make ${target}
 
 
 #

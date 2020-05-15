@@ -1,0 +1,17 @@
+# binaries
+.bin
+
+# dev
+.gitignore
+.git
+.vscode
+.github
+skaffold.yaml
+
+# text
+LICENSE
+README.md
+
+# deployment
+deployment
+example

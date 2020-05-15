@@ -27,6 +27,13 @@ all: fmt lint test | $(BIN) ; $(info $(M) building executable) @ ## Build progra
 		-ldflags '-X main.Version=$(VERSION) -X main.BuildDate=$(DATE)' \
 		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook
 
+.PHONY: dev
+dev: ; $(info $(M) building executable) @ ## Build program binary
+	$Q $(GO) build \
+		-tags dev \
+		-ldflags '-X main.Version=$(VERSION) -X main.BuildDate=$(DATE)' \
+		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook
+
 # Tools
 
 $(BIN):
@@ -83,7 +90,7 @@ test-coverage: fmt lint test-coverage-tools ; $(info $(M) running coverage tests
 	$Q $(GOCOV) convert $(COVERAGE_PROFILE) | $(GOCOVXML) > $(COVERAGE_XML)
 
 .PHONY: lint
-lint: | $(info $(M) running golangci-lint) ## Run golangci-lint
+lint: ; $(info $(M) running golangci-lint) @ ## Run golangci-lint
 	$Q $(GOLANGCI_LINT) run --timeout=5m -v -c $(GOLANGCI_LINT_CONFIG) ./cmd/...
 
 .PHONY: fmt
