@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 0.2.11
+description: A Helm Chart to deploy DoIT International's kube-secrets-init application.
+maintainers:
+  - name: Scott Hawkins
+    email: s.hawkins@calendly.com
+name: secrets-init
+sources:
+  - https://github.com/doitintl/kube-secrets-init
+type: application
+version: 0.1.0

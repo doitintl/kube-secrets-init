@@ -1,0 +1,21 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "secrets-init.fullname" . }}
+  labels:
+    {{- include "secrets-init.labels" . | nindent 4 }}
+webhooks:
+  - name: {{ .Values.webhook.domain }}
+    admissionReviewVersions: ["v1beta1"]
+    sideEffects: None
+    clientConfig:
+      service:
+        name: {{ include "secrets-init.fullname" . }}
+        namespace: {{ .Release.Namespace }}
+        path: "/pods"
+      caBundle: {{ required "Cannot provide empty value for caBundle!" .Values.webhook.caBundle }}
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["pods"]

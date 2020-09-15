@@ -1,0 +1,46 @@
+{{- if .Values.deployment.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "secrets-init.fullname" . }}
+  labels:
+    {{- include "secrets-init.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "secrets-init.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      labels:
+        {{- include "secrets-init.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "secrets-init.fullname" . }}
+      containers:
+        - name: webhook
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- with .Values.logLevel }}
+            - --log-level={{ . }}
+            {{- end }}
+            - server
+            - --tls-cert-file=/etc/webhook/certs/cert.pem
+            - --tls-private-key-file=/etc/webhook/certs/key.pem
+            - --pull-policy=Always
+            {{- with (required "Please verify that .Values.provider is not empty!" .Values.provider) }}
+            - --provider={{ . }}
+            {{- end }}
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: secrets-init-webhook-certs
+{{- end }}

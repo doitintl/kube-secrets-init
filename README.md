@@ -70,6 +70,14 @@ This can be achieved by assigning IAM Role to Kubernetes Pod with [Workload Iden
 
 Uncomment `--provider=google` flag in the [deployment.yaml](https://github.com/doitintl/kube-secrets-init/blob/master/deployment/deployment.yaml) file.
 
+If using a private GKE cluster, you will need to add a firewall rule to allow the cluster master to communicate with the webhook so that `Pods` can be scheduled. Without this rule, deploying this tool using either deployment option will result in unschedulable `Pods`.
+
+Example:
+
+| Rule Name            | Network             | Direction | Port   | Source Filter       |
+| -------------------- | ------------------- | --------- | ------ | ------------------- |
+| `allow-secrets-init` | VPC Cluster Network | `Ingress` | `8443` | Cluster Master CIDR |
+
 ## `kube-secrets-init` deployment
 
 1. To deploy the `kube-secrets-init` server, we need to create a webhook service and a deployment in our Kubernetes cluster. It’s pretty straightforward, except one thing, which is the server’s TLS configuration. If you’d care to examine the [deployment.yaml](https://github.com/doitintl/kube-secrets-init/blob/master/deployment/deployment.yaml) file, you’ll find that the certificate and corresponding private key files are read from command line arguments, and that the path to these files comes from a volume mount that points to a Kubernetes secret:
@@ -160,3 +168,7 @@ kubectl create -f deployment/clusterrole.yaml
 # define a cluster role binding
 kubectl create -f deployment/clusterrolebinding.yaml
 ```
+
+## Helm Deployment
+
+Optionally, you can use the Helm chart located within `charts/` to deploy using Helm. View the readme for details. The two scripts that must be run are included with the chart with a small modification to the script to retrieve the `caBundle`. The chart assists in installing the application into a cluster but still has the same prerequisites.

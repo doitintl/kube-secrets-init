@@ -1,0 +1,29 @@
+# Default values for secrets-init.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+deployment:
+  enabled: true
+
+image:
+  repository: doitintl/kube-secrets-init
+  pullPolicy: IfNotPresent
+  tag: 0.2.11
+
+logLevel: debug
+
+# Can be google or aws.
+provider: google
+
+rbac:
+  create: true
+
+replicaCount: 1
+
+service:
+  port: 443
+  targetPort: 8443
+
+webhook:
+  caBundle: ""
+  domain: secrets-init.doit-intl.com
