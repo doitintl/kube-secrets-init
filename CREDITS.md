@@ -14,5 +14,5 @@ License (Apache-2.0 License) https://github.com/morvencao/kube-mutating-webhook-
 
 Project: Bank Vaults by Banzai Cloud https://github.com/banzaicloud/bank-vaults
 
-Copyright © 2018 Banzai Cloud
+Copyright © 2020 Banzai Cloud
 License (Apache-2.0 License) https://github.com/banzaicloud/bank-vaults/blob/master/LICENSE
