@@ -403,13 +403,24 @@ func runWebhook(c *cli.Context) error {
 		logger.WithError(err).Fatalf("error creating k8s client")
 	}
 
+	defaultImagePullSecret := c.String("default-image-pull-secret")
+	if defaultImagePullSecret == "" {
+		defaultImagePullSecret = c.String("default_image_pull_secret")
+	}
+
+	defaultImagePullSecretNamespace := c.String("default-image-pull-secret-namespace")
+	if defaultImagePullSecret == "" {
+		defaultImagePullSecretNamespace = c.String("default_image_pull_secret_namespace")
+	}
+
 	webhook := mutatingWebhook{
 		k8sClient: k8sClient,
 		registry: registry.NewRegistry(
 			c.Bool("registry-skip-verify"),
 			c.String("docker-config-json-key"),
-			c.String("default_image_pull_secret"),
-			c.String("default_image_pull_secret_namespace")),
+			defaultImagePullSecret,
+			defaultImagePullSecretNamespace,
+		),
 		provider:   c.String("provider"),
 		image:      c.String("image"),
 		pullPolicy: c.String("pull-policy"),
@@ -525,11 +536,21 @@ func main() {
 					Value: corev1.DockerConfigJsonKey,
 				},
 				cli.StringFlag{
-					Name:  "default_image_pull_secret",
+					Name:   "default_image_pull_secret",
+					Usage:  "default image pull secret",
+					Hidden: true,
+				},
+				cli.StringFlag{
+					Name:   "default_image_pull_secret_namespace",
+					Usage:  "default image pull secret namespace",
+					Hidden: true,
+				},
+				cli.StringFlag{
+					Name:  "default-image-pull-secret",
 					Usage: "default image pull secret",
 				},
 				cli.StringFlag{
-					Name:  "default_image_pull_secret_namespace",
+					Name:  "default-image-pull-secret-namespace",
 					Usage: "default image pull secret namespace",
 				},
 				cli.StringFlag{
