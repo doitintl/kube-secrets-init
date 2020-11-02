@@ -408,8 +408,8 @@ func runWebhook(c *cli.Context) error {
 		registry: registry.NewRegistry(
 			c.Bool("registry-skip-verify"),
 			c.String("docker-config-json-key"),
-			c.String("default-image-pull-secret"),
-			c.String("default-image-pull-secret-namespace")),
+			c.String("default_image_pull_secret"),
+			c.String("default_image_pull_secret_namespace")),
 		provider:   c.String("provider"),
 		image:      c.String("image"),
 		pullPolicy: c.String("pull-policy"),
