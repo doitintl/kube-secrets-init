@@ -137,6 +137,8 @@ func getImageBlob(container *ContainerInfo, registrySkipVerify bool) (*imagev1.I
 
 // parseContainerImage returns image and reference
 func parseContainerImage(image string) (string, string) {
+	var imageName = image
+	var reference = "latest"
 	var split []string
 
 	if strings.Contains(image, "@") {
@@ -145,11 +147,16 @@ func parseContainerImage(image string) (string, string) {
 		split = strings.SplitN(image, ":", 2)
 	}
 
-	imageName := split[0]
-	reference := "latest"
-
 	if len(split) > 1 {
+		imageName = split[0]
 		reference = split[1]
+
+		// image:tag@sha256:abc is a valid image format.
+		// in that case, remove the tag from the imageName
+		if strings.Contains(imageName, ":") {
+			split = strings.SplitN(imageName, ":", 2)
+			imageName = split[0]
+		}
 	}
 
 	return imageName, reference
