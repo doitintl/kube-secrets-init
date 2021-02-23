@@ -110,6 +110,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 				pullPolicy: string(corev1.PullIfNotPresent),
 			},
 			args: args{
+				ns: "test-ns",
 				containers: []corev1.Container{
 					{
 						Name:    "TestContainer",

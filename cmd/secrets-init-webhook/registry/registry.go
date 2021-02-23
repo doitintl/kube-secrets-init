@@ -15,6 +15,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -177,8 +178,8 @@ type ContainerInfo struct {
 	DefaultImagePullSecretNamespace string
 }
 
-func (k *ContainerInfo) readDockerSecret(namespace, secretName string) (map[string][]byte, error) {
-	secret, err := k.clientset.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+func (k *ContainerInfo) readDockerSecret(ctx context.Context, namespace, secretName string) (map[string][]byte, error) {
+	secret, err := k.clientset.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +260,7 @@ func (k *ContainerInfo) fixDockerHubImage(image string) string {
 }
 
 func (k *ContainerInfo) checkImagePullSecret(namespace, secret string) (bool, error) {
-	data, err := k.readDockerSecret(namespace, secret)
+	data, err := k.readDockerSecret(context.TODO(), namespace, secret)
 	if err != nil {
 		return false, fmt.Errorf("cannot read imagePullSecret '%s' in namespace '%s': %s", secret, namespace, err.Error())
 	}

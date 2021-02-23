@@ -111,16 +111,16 @@ func hasSecretsPrefix(value string) bool {
 		(strings.HasPrefix(value, "arn:aws:ssm") && strings.Contains(value, ":parameter/"))
 }
 
-func (mw *mutatingWebhook) getDataFromConfigmap(cmName, ns string) (map[string]string, error) {
-	configMap, err := mw.k8sClient.CoreV1().ConfigMaps(ns).Get(cmName, metav1.GetOptions{})
+func (mw *mutatingWebhook) getDataFromConfigmap(ctx context.Context, cmName, ns string) (map[string]string, error) {
+	configMap, err := mw.k8sClient.CoreV1().ConfigMaps(ns).Get(ctx, cmName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 	return configMap.Data, nil
 }
 
-func (mw *mutatingWebhook) getDataFromSecret(secretName, ns string) (map[string][]byte, error) {
-	secret, err := mw.k8sClient.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
+func (mw *mutatingWebhook) getDataFromSecret(ctx context.Context, secretName, ns string) (map[string][]byte, error) {
+	secret, err := mw.k8sClient.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 
 	for _, ef := range envFrom {
 		if ef.ConfigMapRef != nil {
-			data, err := mw.getDataFromConfigmap(ef.ConfigMapRef.Name, ns)
+			data, err := mw.getDataFromConfigmap(context.TODO(), ef.ConfigMapRef.Name, ns)
 			if err != nil {
 				if apierrors.IsNotFound(err) && ef.ConfigMapRef.Optional != nil && *ef.ConfigMapRef.Optional {
 					continue
@@ -152,7 +152,7 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 			}
 		}
 		if ef.SecretRef != nil {
-			data, err := mw.getDataFromSecret(ef.SecretRef.Name, ns)
+			data, err := mw.getDataFromSecret(context.TODO(), ef.SecretRef.Name, ns)
 			if err != nil {
 				if apierrors.IsNotFound(err) && ef.SecretRef.Optional != nil && *ef.SecretRef.Optional {
 					continue
@@ -176,7 +176,7 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 
 func (mw *mutatingWebhook) lookForValueFrom(env corev1.EnvVar, ns string) (*corev1.EnvVar, error) {
 	if env.ValueFrom.ConfigMapKeyRef != nil {
-		data, err := mw.getDataFromConfigmap(env.ValueFrom.ConfigMapKeyRef.Name, ns)
+		data, err := mw.getDataFromConfigmap(context.TODO(), env.ValueFrom.ConfigMapKeyRef.Name, ns)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +189,7 @@ func (mw *mutatingWebhook) lookForValueFrom(env corev1.EnvVar, ns string) (*core
 		}
 	}
 	if env.ValueFrom.SecretKeyRef != nil {
-		data, err := mw.getDataFromSecret(env.ValueFrom.SecretKeyRef.Name, ns)
+		data, err := mw.getDataFromSecret(context.TODO(), env.ValueFrom.SecretKeyRef.Name, ns)
 		if err != nil {
 			return nil, err
 		}
