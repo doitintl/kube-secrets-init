@@ -1,0 +1,2 @@
+provider: "aws"
+useImage: bporter2387/secrets-init:latest

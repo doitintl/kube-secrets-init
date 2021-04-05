@@ -1,0 +1,16 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kube-secrets-init.fullname" . }}
+  labels:
+    {{- include "kube-secrets-init.labels" . | nindent 4 }}
+spec:
+  endpoints:
+    - port: telemetry
+      interval: {{ .Values.serviceMonitor.interval }}
+  jobLabel: {{ include "kube-secrets-init.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "kube-secrets-init.selectorLabels" . | nindent 6 }}
+{{- end }}

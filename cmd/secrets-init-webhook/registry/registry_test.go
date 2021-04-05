@@ -1,26 +1,137 @@
+// Copyright © 2019 Banzai Cloud
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package registry
 
-import "testing"
+import (
+	"testing"
+	"time"
 
-//nolint:goconst
-func TestParseContainerImage(t *testing.T) {
-	var imageName, reference = parseContainerImage("image:tag")
-	if imageName != "image" && reference != "tag" {
-		t.Errorf("parseContainerImage was incorrect, got: %s, %s want: %s, %s.", imageName, reference, "image", "tag")
+	"github.com/patrickmn/go-cache"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+)
+
+func TestIsAllowedToCache(t *testing.T) {
+	tests := []struct {
+		container    *corev1.Container
+		allowToCache bool
+	}{
+		{
+			container: &corev1.Container{
+				Name:  "app",
+				Image: "foo:bar",
+			},
+			allowToCache: true,
+		},
+		{
+			container: &corev1.Container{
+				Name:  "app",
+				Image: "foo",
+			},
+			allowToCache: false,
+		},
+		{
+			container: &corev1.Container{
+				Name:  "app",
+				Image: "foo:latest",
+			},
+			allowToCache: false,
+		},
+		{
+			container: &corev1.Container{
+				Name:            "app",
+				Image:           "foo:bar",
+				ImagePullPolicy: corev1.PullAlways,
+			},
+			allowToCache: false,
+		},
+	}
+	for _, test := range tests {
+		allowToCache := IsAllowedToCache(test.container)
+		if test.allowToCache != allowToCache {
+			t.Errorf("IsAllowedToCache() != %v", test.allowToCache)
+		}
+	}
+}
+
+func TestParsingRegistryAddress(t *testing.T) {
+	tests := []struct {
+		container       *corev1.Container
+		podSpec         *corev1.PodSpec
+		registryAddress string
+	}{
+		{
+			container: &corev1.Container{
+				Image: "foo:bar",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://index.docker.io",
+		},
+		{
+			container: &corev1.Container{
+				Image: "foo",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://index.docker.io",
+		},
+		{
+			container: &corev1.Container{
+				Image: "library/foo:latest",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://index.docker.io",
+		},
+		{
+			container: &corev1.Container{
+				Image: "index.docker.io/foo:latest",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://index.docker.io",
+		},
+		{
+			container: &corev1.Container{
+				Image: "foo:bar",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://index.docker.io",
+		},
+		{
+			container: &corev1.Container{
+				Image: "docker.io/foo:bar",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://index.docker.io",
+		},
+		{
+			container: &corev1.Container{
+				Image: "docker.pkg.github.com/banzaicloud/bank-vaults/vault-env:0.6.0",
+			},
+			podSpec:         &corev1.PodSpec{},
+			registryAddress: "https://docker.pkg.github.com",
+		},
 	}
 
-	imageName, reference = parseContainerImage("image")
-	if imageName != "image" && reference != "latest" {
-		t.Errorf("parseContainerImage was incorrect, got: %s, %s want: %s, %s.", imageName, reference, "image", "latest")
-	}
+	for _, test := range tests {
+		containerInfo := ContainerInfo{}
+		mockCache := cache.New(time.Minute, time.Minute)
 
-	imageName, reference = parseContainerImage("image@abc")
-	if imageName != "image" && reference != "abc" {
-		t.Errorf("parseContainerImage was incorrect, got: %s, %s want: %s, %s.", imageName, reference, "image", "abc")
-	}
+		err := containerInfo.Collect(test.container, test.podSpec, mockCache)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	imageName, reference = parseContainerImage("image:tag@abc")
-	if imageName != "image" && reference != "abc" {
-		t.Errorf("parseContainerImage was incorrect, got: %s, %s want: %s, %s.", imageName, reference, "image", "abc")
+		assert.Equal(t, test.registryAddress, containerInfo.RegistryAddress)
 	}
 }

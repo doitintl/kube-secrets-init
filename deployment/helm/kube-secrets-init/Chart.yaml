@@ -1,0 +1,20 @@
+annotations:
+  artifacthub.io/changes: |
+    - Remove ServiceMonitor config options
+  artifacthub.io/images: |
+    - name: kube-secrets-init
+      image: doitintl/kube-secrets-init:0.2.14
+apiVersion: v2
+appVersion: 0.2.14
+description: kube-secrets-init is a Kubernetes mutating admission webhook, that mutates any Pod that is using specially prefixed environment variables, directly or from Kubernetes as Secret or ConfigMap.
+home: https://github.com/doitintl/kube-secrets-init
+kubeVersion: '>=1.16.0-0'
+maintainers:
+- email: mark.sagikazar@gmail.com
+  name: sagikazarmark
+  url: https://sagikazarmark.hu
+name: kube-secrets-init
+sources:
+- https://github.com/doitintl/kube-secrets-init
+type: application
+version: 0.4.0

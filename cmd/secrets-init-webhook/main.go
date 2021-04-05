@@ -403,24 +403,19 @@ func runWebhook(c *cli.Context) error {
 		logger.WithError(err).Fatalf("error creating k8s client")
 	}
 
-	defaultImagePullSecret := c.String("default-image-pull-secret")
-	if defaultImagePullSecret == "" {
-		defaultImagePullSecret = c.String("default_image_pull_secret")
-	}
+	// defaultImagePullSecret := c.String("default-image-pull-secret")
+	// if defaultImagePullSecret == "" {
+	// 	defaultImagePullSecret = c.String("default_image_pull_secret")
+	// }
 
-	defaultImagePullSecretNamespace := c.String("default-image-pull-secret-namespace")
-	if defaultImagePullSecret == "" {
-		defaultImagePullSecretNamespace = c.String("default_image_pull_secret_namespace")
-	}
+	// defaultImagePullSecretNamespace := c.String("default-image-pull-secret-namespace")
+	// if defaultImagePullSecret == "" {
+	// 	defaultImagePullSecretNamespace = c.String("default_image_pull_secret_namespace")
+	// }
 
 	webhook := mutatingWebhook{
-		k8sClient: k8sClient,
-		registry: registry.NewRegistry(
-			c.Bool("registry-skip-verify"),
-			c.String("docker-config-json-key"),
-			defaultImagePullSecret,
-			defaultImagePullSecretNamespace,
-		),
+		k8sClient:  k8sClient,
+		registry:   registry.NewRegistry(),
 		provider:   c.String("provider"),
 		image:      c.String("image"),
 		pullPolicy: c.String("pull-policy"),
