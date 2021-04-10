@@ -14,10 +14,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 
-	whhttp "github.com/slok/kubewebhook/pkg/http"
-	"github.com/slok/kubewebhook/pkg/observability/metrics"
-	whcontext "github.com/slok/kubewebhook/pkg/webhook/context"
-	"github.com/slok/kubewebhook/pkg/webhook/mutating"
+	whhttp "github.com/slok/kubewebhook/v2/pkg/http"
+	whlogrus "github.com/slok/kubewebhook/v2/pkg/log/logrus"
+	metrics "github.com/slok/kubewebhook/v2/pkg/metrics/prometheus"
+	whmodel "github.com/slok/kubewebhook/v2/pkg/model"
+	wh "github.com/slok/kubewebhook/v2/pkg/webhook"
+	"github.com/slok/kubewebhook/v2/pkg/webhook/mutating"
 	"github.com/urfave/cli"
 
 	corev1 "k8s.io/api/core/v1"
@@ -90,13 +92,18 @@ func serveMetrics(addr string) {
 	}
 }
 
-func handlerFor(config mutating.WebhookConfig, mutator mutating.MutatorFunc, recorder metrics.Recorder, logger *log.Logger) http.Handler {
-	webhook, err := mutating.NewWebhook(config, mutator, nil, recorder, logger)
+func handlerFor(config mutating.WebhookConfig, recorder *metrics.Recorder, logger *log.Logger) http.Handler {
+	webhook, err := mutating.NewWebhook(config)
 	if err != nil {
 		logger.WithError(err).Fatal("error creating webhook")
 	}
 
-	handler, err := whhttp.HandlerFor(webhook)
+	measuredWebhook := wh.NewMeasuredWebhook(recorder, webhook)
+
+	handler, err := whhttp.HandlerFor(whhttp.HandlerConfig{
+		Webhook: measuredWebhook,
+		Logger:  whlogrus.NewLogrus(log.NewEntry(logger)),
+	})
 	if err != nil {
 		logger.WithError(err).Fatalf("error creating webhook")
 	}
@@ -387,12 +394,13 @@ func before(c *cli.Context) error {
 	return nil
 }
 
-func (mw *mutatingWebhook) secretsMutator(ctx context.Context, obj metav1.Object) (bool, error) {
+func (mw *mutatingWebhook) secretsMutator(ctx context.Context, ar *whmodel.AdmissionReview, obj metav1.Object) (*mutating.MutatorResult, error) {
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		return false, mw.mutatePod(v, whcontext.GetAdmissionRequest(ctx).Namespace, whcontext.IsAdmissionRequestDryRun(ctx))
+		mw.mutatePod(v, ar.Namespace, ar.DryRun)
+		return &mutating.MutatorResult{MutatedObject: v}, nil
 	default:
-		return false, nil
+		return &mutating.MutatorResult{}, nil
 	}
 }
 
@@ -429,9 +437,23 @@ func runWebhook(c *cli.Context) error {
 	}
 
 	mutator := mutating.MutatorFunc(webhook.secretsMutator)
-	metricsRecorder := metrics.NewPrometheus(prometheus.DefaultRegisterer)
+	metricsRecorder, err := metrics.NewRecorder(metrics.RecorderConfig{
+		Registry: prometheus.DefaultRegisterer,
+	})
+	if err != nil {
+		logger.WithError(err).Fatalf("error creating metrics recorder")
+	}
 
-	podHandler := handlerFor(mutating.WebhookConfig{Name: "init-secrets-pods", Obj: &corev1.Pod{}}, mutator, metricsRecorder, logger)
+	podHandler := handlerFor(
+		mutating.WebhookConfig{
+			ID:      "init-secrets-pods",
+			Obj:     &corev1.Pod{},
+			Mutator: mutator,
+			Logger:  whlogrus.NewLogrus(log.NewEntry(logger)),
+		},
+		metricsRecorder,
+		logger,
+	)
 
 	mux := http.NewServeMux()
 	mux.Handle("/pods", podHandler)
