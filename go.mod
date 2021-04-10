@@ -1,6 +1,6 @@
 module github.com/doitintl/kube-secrets-init
 
-go 1.13
+go 1.16
 
 require (
 	github.com/docker/distribution v2.7.1+incompatible // indirect
