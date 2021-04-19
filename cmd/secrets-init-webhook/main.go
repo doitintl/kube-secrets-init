@@ -9,11 +9,10 @@ import (
 	"strings"
 
 	"github.com/doitintl/kube-secrets-init/cmd/secrets-init-webhook/registry"
-
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-
 	whhttp "github.com/slok/kubewebhook/v2/pkg/http"
 	whlogrus "github.com/slok/kubewebhook/v2/pkg/log/logrus"
 	metrics "github.com/slok/kubewebhook/v2/pkg/metrics/prometheus"
@@ -21,7 +20,6 @@ import (
 	wh "github.com/slok/kubewebhook/v2/pkg/webhook"
 	"github.com/slok/kubewebhook/v2/pkg/webhook/mutating"
 	"github.com/urfave/cli"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -92,7 +90,7 @@ func serveMetrics(addr string) {
 	}
 }
 
-func handlerFor(config mutating.WebhookConfig, recorder *metrics.Recorder, logger *log.Logger) http.Handler {
+func handlerFor(config mutating.WebhookConfig, recorder wh.MetricsRecorder, logger *log.Logger) http.Handler {
 	webhook, err := mutating.NewWebhook(config)
 	if err != nil {
 		logger.WithError(err).Fatal("error creating webhook")
@@ -397,7 +395,10 @@ func before(c *cli.Context) error {
 func (mw *mutatingWebhook) secretsMutator(ctx context.Context, ar *whmodel.AdmissionReview, obj metav1.Object) (*mutating.MutatorResult, error) {
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		mw.mutatePod(v, ar.Namespace, ar.DryRun)
+		err := mw.mutatePod(v, ar.Namespace, ar.DryRun)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to mutate pod: %s", v.Name)
+		}
 		return &mutating.MutatorResult{MutatedObject: v}, nil
 	default:
 		return &mutating.MutatorResult{}, nil
