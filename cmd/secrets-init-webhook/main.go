@@ -397,8 +397,9 @@ func before(c *cli.Context) error {
 func (mw *mutatingWebhook) secretsMutator(ctx context.Context, ar *whmodel.AdmissionReview, obj metav1.Object) (*mutating.MutatorResult, error) {
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		mw.mutatePod(v, ar.Namespace, ar.DryRun)
-		return &mutating.MutatorResult{MutatedObject: v}, nil
+		err := mw.mutatePod(v, ar.Namespace, ar.DryRun)
+
+		return &mutating.MutatorResult{MutatedObject: v}, err
 	default:
 		return &mutating.MutatorResult{}, nil
 	}
