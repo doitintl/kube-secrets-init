@@ -17,5 +17,7 @@ webhooks:
         apiGroups: ["*"]
         apiVersions: ["*"]
         resources: ["pods"]
-
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
+    timeoutSeconds: 5
 
