@@ -1,4 +1,4 @@
-[![](https://github.com/doitintl/kube-secrets-init/workflows/Docker%20Image%20CI/badge.svg)](https://github.com/doitintl/kube-secrets-init/actions?query=workflow%3A"Docker+Image+CI") [![Docker Pulls](https://img.shields.io/docker/pulls/doitintl/kube-secrets-init.svg?style=popout)](https://hub.docker.com/r/doitintl/kube-secrets-init) [![](https://images.microbadger.com/badges/image/doitintl/kube-secrets-init.svg)](https://microbadger.com/images/doitintl/kube-secrets-init "Get your own image badge on microbadger.com")
+[![code](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml/badge.svg)](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml) [![Docker Pulls](https://img.shields.io/docker/pulls/doitintl/kube-secrets-init.svg?style=popout)](https://hub.docker.com/r/doitintl/kube-secrets-init) [![](https://images.microbadger.com/badges/image/doitintl/kube-secrets-init.svg)](https://microbadger.com/images/doitintl/kube-secrets-init "Get your own image badge on microbadger.com")
 
 # `kube-secrets-init`
 
