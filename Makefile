@@ -7,10 +7,15 @@ TESTPKGS = $(shell env GO111MODULE=on $(GO) list -f \
 			'{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' \
 			$(PKGS))
 BIN      = $(CURDIR)/.bin
-GOLANGCI_LINT_CONFIG = $(CURDIR)/.golangci.yaml
+LDFLAGS_VERSION = -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) -X main.GitCommit=$(COMMIT) -X main.GitBranch=$(BRANCH)
+LINT_CONFIG = $(CURDIR)/.golangci.yaml
+PLATFORMS     = darwin linux
+ARCHITECTURES = amd64 arm64
+TARGETOS   ?= $(GOOS)
+TARGETARCH ?= $(GOARCH)
 
+DOCKER  = docker
 GO      = go
-GOLANGCI_LINT = golangci-lint
 TIMEOUT = 15
 V = 0
 Q = $(if $(filter 1,$V),,@)
@@ -24,34 +29,44 @@ export GOPROXY=https://proxy.golang.org
 all: fmt lint test | $(BIN) ; $(info $(M) building executable) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
-		-ldflags '-X main.Version=$(VERSION) -X main.BuildDate=$(DATE)' \
+		-ldflags "$(LDFLAGS_VERSION)" \
 		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook
 
-.PHONY: dev
-dev: ; $(info $(M) building executable) @ ## Build program binary
-	$Q $(GO) build \
-		-tags dev \
-		-ldflags '-X main.Version=$(VERSION) -X main.BuildDate=$(DATE)' \
-		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook
+# Release for multiple platforms
+
+.PHONY: platfrom-build
+platfrom-build: clean lint test ; $(info $(M) building binaries for multiple os/arch...) @ ## Build program binary for platforms and os
+	$(foreach GOOS, $(PLATFORMS),\
+		$(foreach GOARCH, $(ARCHITECTURES), \
+			$(shell \
+				GOPROXY=$(GOPROXY) CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
+				$(GO) build \
+				-tags release \
+				-ldflags "$(LDFLAGS_VERSION)" \
+				-o $(BIN)/$(basename $(MODULE))-$(GOOS)-$(GOARCH) ./cmd/secrets-init-webhook || true)))
 
 # Tools
 
-$(BIN):
-	@mkdir -p $@
-$(BIN)/%: | $(BIN) ; $(info $(M) building $(PACKAGE))
-	$Q tmp=$$(mktemp -d); \
-	   env GO111MODULE=off GOPATH=$$tmp GOBIN=$(BIN) $(GO) get $(PACKAGE) \
-		|| ret=$$?; \
-	   rm -rf $$tmp ; exit $$ret
+setup-tools: setup-lint setup-gocov setup-gocov-xml setup-go2xunit setup-mockery setup-ghr
 
-GOCOV = $(BIN)/gocov
-$(BIN)/gocov: PACKAGE=github.com/axw/gocov/...
+setup-lint:
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.39
+setup-gocov:
+	$(GO) install github.com/axw/gocov/...
+setup-gocov-xml:
+	$(GO) install github.com/AlekSi/gocov-xml
+setup-go2xunit:
+	$(GO) install github.com/tebeka/go2xunit
+setup-mockery:
+	$(GO) install github.com/vektra/mockery/v2/
+setup-ghr:
+	$(GO) install github.com/tcnksm/ghr@v0.13.0
 
-GOCOVXML = $(BIN)/gocov-xml
-$(BIN)/gocov-xml: PACKAGE=github.com/AlekSi/gocov-xml
-
-GO2XUNIT = $(BIN)/go2xunit
-$(BIN)/go2xunit: PACKAGE=github.com/tebeka/go2xunit
+GOLINT=golangci-lint
+GOCOV=gocov
+GOCOVXML=gocov-xml
+GO2XUNIT=go2xunit
+GOMOCK=mockery
 
 # Tests
 
@@ -63,10 +78,10 @@ test-verbose: ARGS=-v            ## Run tests in verbose mode with coverage repo
 test-race:    ARGS=-race         ## Run tests with race detector
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
-check test tests: fmt lint ; $(info $(M) running $(NAME:%=% )tests) @ ## Run tests
+check test tests: ; $(info $(M) running $(NAME:%=% )tests) @ ## Run tests
 	$Q $(GO) test -timeout $(TIMEOUT)s $(ARGS) $(TESTPKGS)
 
-test-xml: fmt lint | $(GO2XUNIT) ; $(info $(M) running xUnit tests) @ ## Run tests with xUnit output
+test-xml: $(GO2XUNIT) ; $(info $(M) running xUnit tests) @ ## Run tests with xUnit output
 	$Q mkdir -p test
 	$Q 2>&1 $(GO) test -timeout $(TIMEOUT)s -v $(TESTPKGS) | tee test/tests.output
 	$(GO2XUNIT) -fail -input test/tests.output -output test/tests.xml
@@ -78,7 +93,7 @@ COVERAGE_HTML    = $(COVERAGE_DIR)/index.html
 .PHONY: test-coverage test-coverage-tools
 test-coverage-tools: | $(GOCOV) $(GOCOVXML)
 test-coverage: COVERAGE_DIR := $(CURDIR)/test/coverage.$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-test-coverage: fmt lint test-coverage-tools ; $(info $(M) running coverage tests) @ ## Run coverage tests
+test-coverage: test-coverage-tools ; $(info $(M) running coverage tests) @ ## Run coverage tests
 	$Q mkdir -p $(COVERAGE_DIR)
 	$Q $(GO) test \
 		-coverpkg=$$($(GO) list -f '{{ join .Deps "\n" }}' $(TESTPKGS) | \
@@ -90,14 +105,26 @@ test-coverage: fmt lint test-coverage-tools ; $(info $(M) running coverage tests
 	$Q $(GOCOV) convert $(COVERAGE_PROFILE) | $(GOCOVXML) > $(COVERAGE_XML)
 
 .PHONY: lint
-lint: ; $(info $(M) running golangci-lint) @ ## Run golangci-lint
-	$Q $(GOLANGCI_LINT) run --timeout=5m -v -c $(GOLANGCI_LINT_CONFIG) ./cmd/...
+lint: setup-lint ; $(info $(M) running golangci-lint) @ ## Run golangci-lint
+	$Q $(GOLINT) run --timeout=5m -v -c $(LINT_CONFIG) ./cmd/...
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt) @ ## Run gofmt on all source files
 	$Q $(GO) fmt $(PKGS)
 
 # Misc
+
+# generate CHANGELOG.md changelog file
+.PHONY: changelog
+changelog: ; $(info $(M) generating changelog...)	@ ## Generating CAHNGELOG.md
+ifndef GITHUB_TOKEN
+	$(error GITHUB_TOKEN is undefined)
+endif
+	$Q $(DOCKER) run --rm \
+		-v $(CURDIR):/usr/local/src/app \
+		-w /usr/local/src/app ferrarimarco/github-changelog-generator \
+		--user doitintl --project kube-secrets-init \
+		--token $(GITHUB_TOKEN)
 
 .PHONY: clean
 clean: ; $(info $(M) cleaning)	@ ## Cleanup everything

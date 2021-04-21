@@ -3,10 +3,10 @@
 #
 # ----- Go Builder Image ------
 #
-FROM golang:1.16-alpine AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.16-alpine AS builder
 
 # curl git bash
-RUN apk add --no-cache curl git bash make
+RUN apk add --no-cache curl git bash make tzdata ca-certificates
 COPY --from=golangci/golangci-lint:v1.39-alpine /usr/bin/golangci-lint /usr/bin
 
 #
@@ -31,21 +31,15 @@ COPY . .
 # build
 RUN make ${target}
 
-
-#
-# ------ get latest CA certificates
-#
-FROM alpine:3.11 as certs
-RUN apk --update add ca-certificates
-
-
 #
 # ------ secrets-init release Docker image ------
 #
 FROM scratch
 
-# copy CA certificates
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# copy certificates
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# copy timezone settings
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 # this is the last commabd since it's never cached
 COPY --from=build /go/src/kube-secrets-init/.bin/github.com/doitintl/kube-secrets-init /kube-secrets-init

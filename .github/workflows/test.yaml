@@ -1,4 +1,4 @@
-name: Test
+name: code
 on:
   push:
     branches:
@@ -15,6 +15,7 @@ on:
 env:
   GOPROXY: https://proxy.golang.org
   CGO_ENABLED: 0
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -30,9 +31,8 @@ jobs:
 
       - name: Lint
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.39
-          golangci-lint run --timeout=5m -v -c .golangci.yaml ./cmd/...
+          make lint
 
       - name: Test
         run: |
-            go test -v ./cmd/...
+          make test-verbose
