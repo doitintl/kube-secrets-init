@@ -26,7 +26,7 @@ export CGO_ENABLED=0
 export GOPROXY=https://proxy.golang.org
 
 .PHONY: all
-all: fmt lint test | $(BIN) ; $(info $(M) building executable) @ ## Build program binary
+all: fmt lint test ; $(info $(M) building executable) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags "$(LDFLAGS_VERSION)" \
