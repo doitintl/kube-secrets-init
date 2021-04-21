@@ -27,7 +27,7 @@ export GOPROXY=https://proxy.golang.org
 
 .PHONY: all
 all: fmt lint test ; $(info $(M) building executable) @ ## Build program binary
-	$Q $(GO) build \
+	$Q env GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) $(GO) build \
 		-tags release \
 		-ldflags "$(LDFLAGS_VERSION)" \
 		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook

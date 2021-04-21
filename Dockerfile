@@ -14,7 +14,9 @@ COPY --from=golangci/golangci-lint:v1.39-alpine /usr/bin/golangci-lint /usr/bin
 #
 FROM builder as build
 
-ARG target=all
+# passed by buildkit
+ARG TARGETOS
+ARG TARGETARCH
 
 # set working directory
 RUN mkdir -p /go/src/kube-secrets-init
@@ -29,7 +31,7 @@ RUN --mount=type=cache,target=/go/mod go mod download
 COPY . .
 
 # build
-RUN make ${target}
+RUN --mount=type=cache,target=/root/.cache/go-build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH} make
 
 #
 # ------ secrets-init release Docker image ------
