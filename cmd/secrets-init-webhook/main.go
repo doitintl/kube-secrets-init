@@ -52,6 +52,12 @@ var (
 	Version = "dev"
 	// BuildDate contains a string with the build date.
 	BuildDate = "unknown"
+	// GitCommit git commit sha
+	GitCommit = "dirty"
+	// GitBranch git branch
+	GitBranch = "dirty"
+	// Platform OS/ARCH
+	Platform = ""
 )
 
 type mutatingWebhook struct {
@@ -490,8 +496,11 @@ func runWebhook(c *cli.Context) error {
 //nolint:funlen
 func main() {
 	cli.VersionPrinter = func(c *cli.Context) {
-		fmt.Printf("version: %s\n", c.App.Version)
+		fmt.Printf("version: %s\n", Version)
 		fmt.Printf("  build date: %s\n", BuildDate)
+		fmt.Printf("  commit: %s\n", GitCommit)
+		fmt.Printf("  branch: %s\n", GitBranch)
+		fmt.Printf("  platform: %s\n", Platform)
 		fmt.Printf("  built with: %s\n", runtime.Version())
 	}
 	app := cli.NewApp()

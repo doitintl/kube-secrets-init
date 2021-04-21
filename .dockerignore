@@ -3,10 +3,13 @@
 
 # dev
 .gitignore
-.git
 .vscode
 .github
 skaffold.yaml
+
+# do not skip .git - needed for version info
+# .git
+
 
 # text
 LICENSE

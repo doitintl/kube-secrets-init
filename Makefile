@@ -1,7 +1,9 @@
 MODULE   = $(shell env GO111MODULE=on $(GO) list -m)
 DATE    ?= $(shell date +%FT%T%z)
-VERSION ?= $(shell git describe --tags --always --dirty --match="v*" 2> /dev/null || \
+VERSION ?= $(shell git describe --tags --always --dirty --match="*" 2> /dev/null || \
 			cat $(CURDIR)/.version 2> /dev/null || echo v0)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null)
+BRANCH  ?= $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
 PKGS     = $(or $(PKG),$(shell env GO111MODULE=on $(GO) list ./...))
 TESTPKGS = $(shell env GO111MODULE=on $(GO) list -f \
 			'{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' \
@@ -29,7 +31,7 @@ export GOPROXY=https://proxy.golang.org
 all: fmt lint test ; $(info $(M) building executable) @ ## Build program binary
 	$Q env GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) $(GO) build \
 		-tags release \
-		-ldflags "$(LDFLAGS_VERSION)" \
+		-ldflags "$(LDFLAGS_VERSION) -X main.Platform=$(TARGETOS)/$(TARGETARCH)" \
 		-o $(BIN)/$(basename $(MODULE)) ./cmd/secrets-init-webhook
 
 # Release for multiple platforms
@@ -42,7 +44,7 @@ platfrom-build: clean lint test ; $(info $(M) building binaries for multiple os/
 				GOPROXY=$(GOPROXY) CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 				$(GO) build \
 				-tags release \
-				-ldflags "$(LDFLAGS_VERSION)" \
+				-ldflags "$(LDFLAGS_VERSION) -X main.Platform=$(GOOS)/$(GOARCH)" \
 				-o $(BIN)/$(basename $(MODULE))-$(GOOS)-$(GOARCH) ./cmd/secrets-init-webhook || true)))
 
 # Tools
