@@ -1,5 +1,9 @@
 [![code](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml/badge.svg)](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml) [![Docker Pulls](https://img.shields.io/docker/pulls/doitintl/kube-secrets-init.svg?style=popout)](https://hub.docker.com/r/doitintl/kube-secrets-init) [![](https://images.microbadger.com/badges/image/doitintl/kube-secrets-init.svg)](https://microbadger.com/images/doitintl/kube-secrets-init "Get your own image badge on microbadger.com")
 
+## Blog Post
+
+[Kubernetes and Secrets Management In The Cloud](https://blog.doit-intl.com/kubernetes-and-secrets-management-in-cloud-part-2-6c37c1238a87?source=friends_link&sk=58405cbafc191a2d7ea2eabbc9d9553e)
+
 # `kube-secrets-init`
 
 The `kube-secrets-init` is a Kubernetes mutating admission webhook, that mutates any K8s Pod that is using specially prefixed environment variables, directly or from Kubernetes as Secret or ConfigMap.
