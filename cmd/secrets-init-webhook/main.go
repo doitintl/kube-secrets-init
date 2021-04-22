@@ -344,13 +344,14 @@ func getSecretsInitVolume(volumeName string) corev1.Volume {
 }
 
 func isNewImage(image string) bool {
+	const latest = "latest"
 	// get image version, "latest" by default
-	version := "latest"
+	version := latest
 	iv := strings.Split(image, ":")
 	if len(iv) == 2 {
 		version = iv[1]
 	}
-	if version == "latest" {
+	if version == latest {
 		return true
 	}
 	// construct semver
