@@ -39,7 +39,7 @@ const (
 	binVolumeName = "secrets-init-bin"
 
 	// binVolumePath is the mount path where the secrets-init binary can be found.
-	binVolumePath = "/secrets-init/bin"
+	binVolumePath = "/helper/bin"
 )
 
 const (
