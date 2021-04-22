@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/doitintl/kube-secrets-init/cmd/secrets-init-webhook/registry"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,9 +43,9 @@ const (
 )
 
 const (
-	requestsCPU    = "5m"
+	requestsCPU    = "10m"
 	requestsMemory = "10Mi"
-	limitsCPU      = "20m"
+	limitsCPU      = "10m"
 	limitsMemory   = "50Mi"
 )
 
@@ -341,12 +343,47 @@ func getSecretsInitVolume(volumeName string) corev1.Volume {
 	}
 }
 
+func isNewImage(image string) bool {
+	// get image version, "latest" by default
+	version := "latest"
+	iv := strings.Split(image, ":")
+	if len(iv) == 2 {
+		version = iv[1]
+	}
+	if version == "latest" {
+		return true
+	}
+	// construct semver
+	ver, err := semver.NewVersion(version)
+	if err != nil {
+		// if invalid semver assume olf image
+		log.WithError(err).Warn("unexpected version")
+		return false
+	}
+
+	// check image version vs constraint
+	c, err := semver.NewConstraint(">= 0.4.0")
+	if err != nil {
+		log.WithError(err).Warn("bad version constraint")
+	}
+	return c.Check(ver)
+}
+
 func getSecretsInitContainer(image, pullPolicy, volumeName, volumePath string) corev1.Container {
+	// default: secrets-init `FROM alpine` use system `cp` command to copy file to mounted volume
+	args := []string{"cp", "/usr/local/bin/secrets-init", volumePath}
+	// new: secrets-init >= 0.4.0 is build `FROM scratch` with `secrets-init` entrypoint
+	// use `secrets-init copy` command to copy file to mounted volume
+	if isNewImage(image) {
+		args = []string{"copy", volumePath}
+	}
+
+	// prepare initContainer
 	return corev1.Container{
 		Name:            "copy-secrets-init",
 		Image:           image,
 		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-		Args:            []string{"cp", "/usr/local/bin/secrets-init", volumePath},
+		Args:            args,
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      volumeName,

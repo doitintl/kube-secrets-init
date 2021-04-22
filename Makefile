@@ -9,7 +9,7 @@ TESTPKGS = $(shell env GO111MODULE=on $(GO) list -f \
 			'{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' \
 			$(PKGS))
 BIN      = $(CURDIR)/.bin
-LDFLAGS_VERSION = -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) -X main.GitCommit=$(COMMIT) -X main.GitBranch=$(BRANCH)
+LDFLAGS_VERSION = -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) -X main.GitCommit=$(COMMIT) -X main.GitBranch=$(BRANCH)
 LINT_CONFIG = $(CURDIR)/.golangci.yaml
 PLATFORMS     = darwin linux
 ARCHITECTURES = amd64 arm64

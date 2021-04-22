@@ -675,3 +675,54 @@ func Test_mutatingWebhook_lookForValueFrom(t *testing.T) {
 		})
 	}
 }
+
+func Test_isNewImage(t *testing.T) {
+	tests := []struct {
+		name  string
+		image string
+		want  bool
+	}{
+		{
+			name:  "new version",
+			image: "test:1.0.0",
+			want:  true,
+		},
+		{
+			name:  "new version exact match",
+			image: "test:0.4.0",
+			want:  true,
+		},
+		{
+			name:  "assumed latest",
+			image: "test",
+			want:  true,
+		},
+		{
+			name:  "explicit latest",
+			image: "test:latest",
+			want:  true,
+		},
+		{
+			name:  "unexpected version",
+			image: "test:wtf",
+			want:  false,
+		},
+		{
+			name:  "old version",
+			image: "test:0.1.0",
+			want:  false,
+		},
+		{
+			name:  "old version with prefix",
+			image: "test:v0.2.9",
+			want:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isNewImage(tt.image); got != tt.want {
+				t.Errorf("isNewImage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
