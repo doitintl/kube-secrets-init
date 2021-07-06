@@ -1,4 +1,5 @@
-[![code](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml/badge.svg)](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml) [![Docker Pulls](https://img.shields.io/docker/pulls/doitintl/kube-secrets-init.svg?style=popout)](https://hub.docker.com/r/doitintl/kube-secrets-init) [![](https://images.microbadger.com/badges/image/doitintl/kube-secrets-init.svg)](https://microbadger.com/images/doitintl/kube-secrets-init "Get your own image badge on microbadger.com")
+[![code](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml/badge.svg)](https://github.com/doitintl/kube-secrets-init/actions/workflows/test.yaml) [![Docker Pulls](https://img.shields.io/docker/pulls/doitintl/kube-secrets-init.svg?style=popout)](https://hub.docker.com/r/doitintl/kube-secrets-init) [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fdoitintl%2Fkube-secrets-init.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fdoitintl%2Fkube-secrets-init?ref=badge_shield)
+[![](https://images.microbadger.com/badges/image/doitintl/kube-secrets-init.svg)](https://microbadger.com/images/doitintl/kube-secrets-init "Get your own image badge on microbadger.com")
 
 ## Blog Post
 
@@ -177,3 +178,7 @@ kubectl create -f deployment/clusterrole.yaml
 # define a cluster role binding
 kubectl create -f deployment/clusterrolebinding.yaml
 ```
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fdoitintl%2Fkube-secrets-init.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fdoitintl%2Fkube-secrets-init?ref=badge_large)
