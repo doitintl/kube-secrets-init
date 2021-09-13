@@ -121,7 +121,8 @@ func handlerFor(config mutating.WebhookConfig, recorder wh.MetricsRecorder, logg
 func hasSecretsPrefix(value string) bool {
 	return strings.HasPrefix(value, "gcp:secretmanager:") ||
 		strings.HasPrefix(value, "arn:aws:secretsmanager") ||
-		(strings.HasPrefix(value, "arn:aws:ssm") && strings.Contains(value, ":parameter/"))
+		(strings.HasPrefix(value, "arn:aws:ssm") && strings.Contains(value, ":parameter/") ||
+			strings.HasPrefix(value, "k8s:secret:"))
 }
 
 func (mw *mutatingWebhook) getDataFromConfigmap(ctx context.Context, cmName, ns string) (map[string]string, error) {
