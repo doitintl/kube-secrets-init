@@ -19,7 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -122,7 +122,7 @@ func getImageBlob(container *ContainerInfo, registrySkipVerify bool) (*imagev1.I
 		return nil, fmt.Errorf("cannot download blob: %s", err.Error())
 	}
 
-	b, err := ioutil.ReadAll(reader)
+	b, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read blob: %s", err.Error())
 	}
@@ -188,10 +188,7 @@ func (k *ContainerInfo) readDockerSecret(ctx context.Context, namespace, secretN
 
 func (k *ContainerInfo) parseDockerConfig(dockerCreds DockerCreds) (bool, error) {
 	for registryName, registryAuth := range dockerCreds.Auths {
-		if strings.HasPrefix(registryName, "https://") {
-			registryName = strings.TrimPrefix(registryName, "https://")
-		}
-
+		registryName = strings.TrimPrefix(registryName, "https://")
 		registryName = strings.TrimSuffix(registryName, "/")
 
 		if strings.HasPrefix(k.Image, registryName) {
@@ -309,10 +306,7 @@ func (k *ContainerInfo) Collect(container *corev1.Container, podSpec *corev1.Pod
 	// In case of other public docker registry
 	if k.RegistryName == "" && k.RegistryAddress == "" {
 		registryName := container.Image
-		if strings.HasPrefix(registryName, "https://") {
-			registryName = strings.TrimPrefix(registryName, "https://")
-		}
-
+		registryName = strings.TrimPrefix(registryName, "https://")
 		registryName = strings.Split(registryName, "/")[0]
 		k.RegistryName = registryName
 		k.RegistryAddress = fmt.Sprintf("https://%s", registryName)
