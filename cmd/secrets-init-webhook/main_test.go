@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/doitintl/kube-secrets-init/cmd/secrets-init-webhook/registry"
-	imagev1 "github.com/opencontainers/image-spec/specs-go/v1"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -14,11 +15,11 @@ import (
 )
 
 type MockRegistry struct {
-	Image imagev1.ImageConfig
+	Image v1.Config
 }
 
 //nolint:lll
-func (r *MockRegistry) GetImageConfig(_ kubernetes.Interface, _ string, _ *corev1.Container, _ *corev1.PodSpec) (*imagev1.ImageConfig, error) {
+func (r *MockRegistry) GetImageConfig(_ context.Context, _ kubernetes.Interface, _ string, _ *corev1.Container, _ *corev1.PodSpec) (*v1.Config, error) {
 	return &r.Image, nil
 }
 
@@ -51,7 +52,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 			fields: fields{
 				k8sClient: fake.NewSimpleClientset(),
 				registry: &MockRegistry{
-					Image: imagev1.ImageConfig{},
+					Image: v1.Config{},
 				},
 				provider:   "aws",
 				image:      secretsInitImage,
@@ -101,7 +102,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 					}),
 				),
 				registry: &MockRegistry{
-					Image: imagev1.ImageConfig{},
+					Image: v1.Config{},
 				},
 				provider:   "aws",
 				image:      secretsInitImage,
@@ -153,7 +154,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 			fields: fields{
 				k8sClient: fake.NewSimpleClientset(),
 				registry: &MockRegistry{
-					Image: imagev1.ImageConfig{},
+					Image: v1.Config{},
 				},
 				provider:   "google",
 				image:      secretsInitImage,
@@ -199,7 +200,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 			fields: fields{
 				k8sClient: fake.NewSimpleClientset(),
 				registry: &MockRegistry{
-					Image: imagev1.ImageConfig{
+					Image: v1.Config{
 						Entrypoint: []string{"/bin/zsh"},
 					},
 				},
@@ -246,7 +247,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 			fields: fields{
 				k8sClient: fake.NewSimpleClientset(),
 				registry: &MockRegistry{
-					Image: imagev1.ImageConfig{
+					Image: v1.Config{
 						Cmd: []string{"test-cmd"},
 					},
 				},
@@ -292,7 +293,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 			fields: fields{
 				k8sClient: fake.NewSimpleClientset(),
 				registry: &MockRegistry{
-					Image: imagev1.ImageConfig{},
+					Image: v1.Config{},
 				},
 				image:      secretsInitImage,
 				volumeName: binVolumeName,
