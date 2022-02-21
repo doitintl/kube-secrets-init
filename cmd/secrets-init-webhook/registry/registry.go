@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/authn/k8schain"
+	kauth "github.com/google/go-containerregistry/pkg/authn/kubernetes"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -69,23 +71,18 @@ func (r *Registry) GetImageConfig(ctx context.Context, client kubernetes.Interfa
 	containerInfo := containerInfo{
 		Namespace:          namespace,
 		ServiceAccountName: podSpec.ServiceAccountName,
-		Image:              container.Image,
 	}
 
 	for _, imagePullSecret := range podSpec.ImagePullSecrets {
 		containerInfo.ImagePullSecrets = append(containerInfo.ImagePullSecrets, imagePullSecret.Name)
 	}
 
-	if len(containerInfo.ImagePullSecrets) == 0 &&
-		r.defaultImagePullSecretNamespace != "" && r.defaultImagePullSecret != "" {
-		containerInfo.Namespace = r.defaultImagePullSecretNamespace
-		containerInfo.ImagePullSecrets = []string{r.defaultImagePullSecret}
-
-		// TODO: check service account for image pull secrets
-		containerInfo.ServiceAccountName = ""
+	keychain, err := r.getKeychain(ctx, client, containerInfo)
+	if err != nil {
+		return nil, err
 	}
 
-	imageConfig, err := getImageConfig(ctx, client, containerInfo, r.registrySkipVerify)
+	imageConfig, err := getImageConfig(ctx, keychain, container.Image, r.registrySkipVerify)
 	if imageConfig != nil {
 		r.imageCache.Put(container.Image, imageConfig)
 	}
@@ -93,25 +90,45 @@ func (r *Registry) GetImageConfig(ctx context.Context, client kubernetes.Interfa
 	return imageConfig, err
 }
 
-// getImageConfig download image blob from registry
-func getImageConfig(ctx context.Context, client kubernetes.Interface, container containerInfo, registrySkipVerify bool) (*v1.Config, error) {
-	chainOpts := k8schain.Options{
+func (r *Registry) getKeychain(ctx context.Context, client kubernetes.Interface, container containerInfo) (authn.Keychain, error) {
+	opts := k8schain.Options{
 		Namespace:          container.Namespace,
 		ServiceAccountName: container.ServiceAccountName,
 		ImagePullSecrets:   container.ImagePullSecrets,
 	}
 
-	authChain, err := k8schain.New(
-		ctx,
-		client,
-		chainOpts,
-	)
+	var keychain authn.Keychain
+	var err error
+
+	// TODO: allow reorganizing auth chains
+	// currently cloud keychains have precedence
+	keychain, err = k8schain.New(ctx, client, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8schain authentication: %w", err)
 	}
 
+	if r.defaultImagePullSecretNamespace != "" && r.defaultImagePullSecret != "" {
+		opts := kauth.Options{
+			Namespace:        r.defaultImagePullSecretNamespace,
+			ImagePullSecrets: []string{r.defaultImagePullSecret},
+		}
+
+		defaultKeychain, err := kauth.New(ctx, client, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default chain authentication: %w", err)
+		}
+
+		keychain = authn.NewMultiKeychain(keychain, defaultKeychain)
+	}
+
+	return keychain, nil
+}
+
+// getImageConfig download image blob from registry
+func getImageConfig(ctx context.Context, keychain authn.Keychain, imageRef string, registrySkipVerify bool) (*v1.Config, error) {
 	options := []remote.Option{
-		remote.WithAuthFromKeychain(authChain),
+		remote.WithAuthFromKeychain(keychain),
+		remote.WithContext(ctx),
 	}
 
 	if registrySkipVerify {
@@ -121,7 +138,7 @@ func getImageConfig(ctx context.Context, client kubernetes.Interface, container 
 		options = append(options, remote.WithTransport(tr))
 	}
 
-	ref, err := name.ParseReference(container.Image)
+	ref, err := name.ParseReference(imageRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image reference: %w", err)
 	}
@@ -149,5 +166,4 @@ type containerInfo struct {
 	Namespace          string
 	ImagePullSecrets   []string
 	ServiceAccountName string
-	Image              string
 }
