@@ -263,7 +263,7 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 		// the container has no explicitly specified command
 		if len(args) == 0 {
 			c := container
-			imageConfig, err := mw.registry.GetImageConfig(mw.k8sClient, ns, &c, podSpec)
+			imageConfig, err := mw.registry.GetImageConfig(context.Background(), mw.k8sClient, ns, &c, podSpec)
 			if err != nil {
 				return false, err
 			}

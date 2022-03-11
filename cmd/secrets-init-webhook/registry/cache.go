@@ -3,28 +3,28 @@ package registry
 import (
 	"sync"
 
-	imagev1 "github.com/opencontainers/image-spec/specs-go/v1"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
 // ImageCache interface
 type ImageCache interface {
-	Get(image string) *imagev1.ImageConfig
-	Put(image string, imageConfig *imagev1.ImageConfig)
+	Get(image string) *v1.Config
+	Put(image string, imageConfig *v1.Config)
 }
 
 // InMemoryImageCache Concrete mutex-guarded cache
 type InMemoryImageCache struct {
 	mutex sync.Mutex
-	cache map[string]imagev1.ImageConfig
+	cache map[string]v1.Config
 }
 
 // NewInMemoryImageCache return new mutex guarded cache
 func NewInMemoryImageCache() ImageCache {
-	return &InMemoryImageCache{cache: map[string]imagev1.ImageConfig{}}
+	return &InMemoryImageCache{cache: map[string]v1.Config{}}
 }
 
 // Get image from cache
-func (c *InMemoryImageCache) Get(image string) *imagev1.ImageConfig {
+func (c *InMemoryImageCache) Get(image string) *v1.Config {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if imageConfig, ok := c.cache[image]; ok {
@@ -34,7 +34,7 @@ func (c *InMemoryImageCache) Get(image string) *imagev1.ImageConfig {
 }
 
 // Put image into cache
-func (c *InMemoryImageCache) Put(image string, imageConfig *imagev1.ImageConfig) {
+func (c *InMemoryImageCache) Put(image string, imageConfig *v1.Config) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.cache[image] = *imageConfig
