@@ -3,11 +3,11 @@
 #
 # ----- Go Builder Image ------
 #
-FROM --platform=${BUILDPLATFORM} golang:1.17-alpine AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.19-alpine AS builder
 
 # curl git bash
 RUN apk add --no-cache curl git bash make tzdata ca-certificates
-COPY --from=golangci/golangci-lint:v1.43-alpine /usr/bin/golangci-lint /usr/bin
+COPY --from=golangci/golangci-lint:v1.50-alpine /usr/bin/golangci-lint /usr/bin
 
 #
 # ----- Build and Test Image -----

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-
 	"github.com/doitintl/kube-secrets-init/cmd/secrets-init-webhook/registry"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,6 +59,8 @@ var (
 	GitBranch = "dirty"
 	// Platform OS/ARCH
 	Platform = ""
+	// ErrNoValue no value error
+	ErrNoValue = errors.New("no value")
 )
 
 type mutatingWebhook struct {
@@ -77,14 +78,18 @@ var logger *log.Logger
 func newK8SClient() (kubernetes.Interface, error) {
 	kubeConfig, err := kubernetesConfig.GetConfig()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get kubernetes config")
 	}
 
-	return kubernetes.NewForConfig(kubeConfig)
+	client, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create kubernetes client")
+	}
+	return client, nil
 }
 
-func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(200)
+func healthzHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
 
 func serveMetrics(addr string) {
@@ -92,6 +97,7 @@ func serveMetrics(addr string) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
+	//nolint:gosec
 	err := http.ListenAndServe(addr, mux)
 	if err != nil {
 		logger.WithError(err).Fatal("error serving telemetry")
@@ -127,7 +133,7 @@ func hasSecretsPrefix(value string) bool {
 func (mw *mutatingWebhook) getDataFromConfigmap(ctx context.Context, cmName, ns string) (map[string]string, error) {
 	configMap, err := mw.k8sClient.CoreV1().ConfigMaps(ns).Get(ctx, cmName, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get configmap %s/%s", ns, cmName)
 	}
 	return configMap.Data, nil
 }
@@ -135,12 +141,12 @@ func (mw *mutatingWebhook) getDataFromConfigmap(ctx context.Context, cmName, ns 
 func (mw *mutatingWebhook) getDataFromSecret(ctx context.Context, secretName, ns string) (map[string][]byte, error) {
 	secret, err := mw.k8sClient.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get secret %s/%s", ns, secretName)
 	}
 	return secret.Data, nil
 }
 
-//nolint:gocyclo
+//nolint:gocognit, gocyclo
 func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns string) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 
@@ -151,7 +157,7 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 				if apierrors.IsNotFound(err) && ef.ConfigMapRef.Optional != nil && *ef.ConfigMapRef.Optional {
 					continue
 				} else {
-					return envVars, err
+					return envVars, errors.Wrapf(err, "failed to get configmap %s/%s", ns, ef.ConfigMapRef.Name)
 				}
 			}
 			for key, value := range data {
@@ -170,7 +176,7 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 				if apierrors.IsNotFound(err) && ef.SecretRef.Optional != nil && *ef.SecretRef.Optional {
 					continue
 				} else {
-					return envVars, err
+					return envVars, errors.Wrapf(err, "failed to get secret %s/%s", ns, ef.SecretRef.Name)
 				}
 			}
 			for key, value := range data {
@@ -191,7 +197,7 @@ func (mw *mutatingWebhook) lookForValueFrom(env corev1.EnvVar, ns string) (*core
 	if env.ValueFrom.ConfigMapKeyRef != nil {
 		data, err := mw.getDataFromConfigmap(context.TODO(), env.ValueFrom.ConfigMapKeyRef.Name, ns)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to get configmap %s/%s", ns, env.ValueFrom.ConfigMapKeyRef.Name)
 		}
 		if hasSecretsPrefix(data[env.ValueFrom.ConfigMapKeyRef.Key]) {
 			fromCM := corev1.EnvVar{
@@ -204,7 +210,7 @@ func (mw *mutatingWebhook) lookForValueFrom(env corev1.EnvVar, ns string) (*core
 	if env.ValueFrom.SecretKeyRef != nil {
 		data, err := mw.getDataFromSecret(context.TODO(), env.ValueFrom.SecretKeyRef.Name, ns)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to get secret %s/%s", ns, env.ValueFrom.SecretKeyRef.Name)
 		}
 		if hasSecretsPrefix(string(data[env.ValueFrom.SecretKeyRef.Key])) {
 			fromSecret := corev1.EnvVar{
@@ -214,9 +220,10 @@ func (mw *mutatingWebhook) lookForValueFrom(env corev1.EnvVar, ns string) (*core
 			return &fromSecret, nil
 		}
 	}
-	return nil, nil
+	return nil, ErrNoValue
 }
 
+//nolint:gocognit
 func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSpec *corev1.PodSpec, ns string) (bool, error) {
 	if len(containers) == 0 {
 		return false, nil
@@ -228,7 +235,7 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 		if len(container.EnvFrom) > 0 {
 			envFrom, err := mw.lookForEnvFrom(container.EnvFrom, ns)
 			if err != nil {
-				return false, err
+				return false, errors.Wrap(err, "failed to look for envFrom")
 			}
 			envVars = append(envVars, envFrom...)
 		}
@@ -239,8 +246,8 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 			}
 			if env.ValueFrom != nil {
 				valueFrom, err := mw.lookForValueFrom(env, ns)
-				if err != nil {
-					return false, err
+				if err != nil && !errors.Is(err, ErrNoValue) {
+					return false, errors.Wrap(err, "failed to look for valueFrom")
 				}
 				if valueFrom == nil {
 					continue
@@ -265,7 +272,7 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 			c := container
 			imageConfig, err := mw.registry.GetImageConfig(context.Background(), mw.k8sClient, ns, &c, podSpec)
 			if err != nil {
-				return false, err
+				return false, errors.Wrap(err, "failed to get image config")
 			}
 
 			args = append(args, imageConfig.Entrypoint...)
@@ -298,7 +305,7 @@ func (mw *mutatingWebhook) mutateContainers(containers []corev1.Container, podSp
 func (mw *mutatingWebhook) mutatePod(pod *corev1.Pod, ns string, dryRun bool) error {
 	initContainersMutated, err := mw.mutateContainers(pod.Spec.InitContainers, &pod.Spec, ns)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to mutate init containers for pod %s", pod.Name)
 	}
 
 	if initContainersMutated {
@@ -309,7 +316,7 @@ func (mw *mutatingWebhook) mutatePod(pod *corev1.Pod, ns string, dryRun bool) er
 
 	containersMutated, err := mw.mutateContainers(pod.Spec.Containers, &pod.Spec, ns)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to mutate containers for pod %s", pod.Name)
 	}
 
 	if containersMutated {
@@ -345,10 +352,11 @@ func getSecretsInitVolume(volumeName string) corev1.Volume {
 
 func isNewImage(image string) bool {
 	const latest = "latest"
+	const verlen = 2
 	// get image version, "latest" by default
 	version := latest
 	iv := strings.Split(image, ":")
-	if len(iv) == 2 {
+	if len(iv) == verlen {
 		version = iv[1]
 	}
 	if version == latest {
@@ -436,7 +444,7 @@ func before(c *cli.Context) error {
 	return nil
 }
 
-func (mw *mutatingWebhook) secretsMutator(ctx context.Context, ar *whmodel.AdmissionReview, obj metav1.Object) (*mutating.MutatorResult, error) {
+func (mw *mutatingWebhook) secretsMutator(_ context.Context, ar *whmodel.AdmissionReview, obj metav1.Object) (*mutating.MutatorResult, error) {
 	switch v := obj.(type) {
 	case *corev1.Pod:
 		err := mw.mutatePod(v, ar.Namespace, ar.DryRun)
@@ -518,10 +526,10 @@ func runWebhook(c *cli.Context) error {
 
 	if tlsCertFile == "" && tlsPrivateKeyFile == "" {
 		logger.Infof("listening on http://%s", listenAddress)
-		err = http.ListenAndServe(listenAddress, mux)
+		err = http.ListenAndServe(listenAddress, mux) //nolint:gosec
 	} else {
 		logger.Infof("listening on https://%s", listenAddress)
-		err = http.ListenAndServeTLS(listenAddress, tlsCertFile, tlsPrivateKeyFile, mux)
+		err = http.ListenAndServeTLS(listenAddress, tlsCertFile, tlsPrivateKeyFile, mux) //nolint:gosec
 	}
 
 	if err != nil {
