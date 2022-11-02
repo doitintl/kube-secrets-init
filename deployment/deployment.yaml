@@ -18,6 +18,10 @@ spec:
         - name: secrets-init-webhook
           image: doitintl/kube-secrets-init
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
           args:
             - --log-level=debug
             - server

@@ -61,7 +61,6 @@ func NewRegistry(skipVerify bool, configJSONKey, imagePullSecret, imagePullSecre
 	}
 }
 
-//nolint:lll
 // GetImageConfig returns entrypoint and command of container
 func (r *Registry) GetImageConfig(ctx context.Context, client kubernetes.Interface, namespace string, container *corev1.Container, podSpec *corev1.PodSpec) (*v1.Config, error) {
 	if imageConfig := r.imageCache.Get(container.Image); imageConfig != nil {
@@ -133,7 +132,7 @@ func getImageConfig(ctx context.Context, keychain authn.Keychain, imageRef strin
 
 	if registrySkipVerify {
 		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 		}
 		options = append(options, remote.WithTransport(tr))
 	}
