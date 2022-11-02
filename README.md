@@ -127,6 +127,14 @@ certificatesigningrequest.certificates.k8s.io/secrets-init-webhook-svc.default a
 secret/secrets-init-webhook-certs configured
 ```
 
+**Note** For the GKE Autopilot, run the [webhook-create-self-signed-cert.sh](https://github.com/doitintl/kube-secrets-init/blob/master/deployment/webhook-create-self-signed-cert.sh) script to generate a self-signed certificate.
+
+Export the CA Bundle as a new environment variable `CA_BUNDLE`:
+
+```sh
+export CA_BUNDLE=[output value of the previous script "Encoded CA:"]
+```
+
 Once the secret is created, we can create deployment and service. These are standard Kubernetes deployment and service resources. Up until this point we’ve produced nothing but an HTTP server that’s accepting requests through a service on port `443`:
 
 ```sh

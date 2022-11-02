@@ -83,7 +83,7 @@ kubectl delete csr ${csrName} 2>/dev/null || true
 
 # create  server cert/key CSR and  send to k8s API
 cat <<EOF | kubectl create -f -
-apiVersion: certificates.k8s.io/v1beta1
+apiVersion: certificates.k8s.io/v1
 kind: CertificateSigningRequest
 metadata:
   name: ${csrName}
@@ -91,6 +91,7 @@ spec:
   groups:
   - system:authenticated
   request: $(cat ${tmpdir}/server.csr | base64 | tr -d '\n')
+  signerName: kubernetes.io/kube-apiserver-client
   usages:
   - digital signature
   - key encipherment
@@ -126,5 +127,10 @@ echo ${serverCert} | openssl base64 -d -A -out ${tmpdir}/server-cert.pem
 kubectl create secret generic ${secret} \
         --from-file=key.pem=${tmpdir}/server-key.pem \
         --from-file=cert.pem=${tmpdir}/server-cert.pem \
-        --dry-run -o yaml |
+        --dry-run=client -o yaml |
     kubectl -n ${namespace} apply -f -
+
+# get CA bundle for use by webhook bootstrap
+caBundle=$(kubectl config view --raw --flatten -o json | jq -r '.clusters[] | select(.name == "'$(kubectl config current-context)'") | .cluster."certificate-authority-data"')
+echo "Encoded CA:"
+echo -e "${caBundle} \n"
