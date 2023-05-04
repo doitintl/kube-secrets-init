@@ -12,6 +12,10 @@ The `kube-secrets-init` is a Kubernetes mutating admission webhook, that mutates
 
 The `kube-secrets-init` injects a `copy-secrets-init` `initContainer` into a target Pod, mounts `/helper/bin` (default; can be changed with the `volume-path` flag) and copies the [`secrets-init`](https://github.com/doitintl/secrets-init) tool into the mounted volume. It also modifies Pod `entrypoint` to `secrets-init` init system, following original command and arguments, extracted either from Pod specification or from Docker image.
 
+### skip injection
+
+The `kube-secrets-init` can be configured to skip injection for all Pods in the specific Namespace by adding the `admission.secrets-init/ignore` label to the Namespace.
+
 ## What `secrets-init` does
 
 `secrets-init` runs as `PID 1`, acting like a simple init system. It launches a single process and then proxies all received signals to a session rooted at that child process.

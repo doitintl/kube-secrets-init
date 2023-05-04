@@ -12,6 +12,11 @@ webhooks:
         namespace: default
         path: "/pods"
       caBundle: ${CA_BUNDLE}
+    # select namespaces without the label "admission.secrets-init/ignore"
+    namespaceSelector:
+      matchExpressions:
+      - key: admission.secrets-init/ignore
+        operator: DoesNotExist
     rules:
       - operations: [ "CREATE" ]
         apiGroups: ["*"]
