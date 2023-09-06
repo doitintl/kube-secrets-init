@@ -1,6 +1,6 @@
 module github.com/doitintl/kube-secrets-init
 
-go 1.19
+go 1.21
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1

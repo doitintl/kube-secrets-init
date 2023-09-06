@@ -156,9 +156,8 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 			if err != nil {
 				if apierrors.IsNotFound(err) && ef.ConfigMapRef.Optional != nil && *ef.ConfigMapRef.Optional {
 					continue
-				} else {
-					return envVars, errors.Wrapf(err, "failed to get configmap %s/%s", ns, ef.ConfigMapRef.Name)
 				}
+				return envVars, errors.Wrapf(err, "failed to get configmap %s/%s", ns, ef.ConfigMapRef.Name)
 			}
 			for key, value := range data {
 				if hasSecretsPrefix(value) {
@@ -175,9 +174,8 @@ func (mw *mutatingWebhook) lookForEnvFrom(envFrom []corev1.EnvFromSource, ns str
 			if err != nil {
 				if apierrors.IsNotFound(err) && ef.SecretRef.Optional != nil && *ef.SecretRef.Optional {
 					continue
-				} else {
-					return envVars, errors.Wrapf(err, "failed to get secret %s/%s", ns, ef.SecretRef.Name)
 				}
+				return envVars, errors.Wrapf(err, "failed to get secret %s/%s", ns, ef.SecretRef.Name)
 			}
 			for key, value := range data {
 				if hasSecretsPrefix(string(value)) {
