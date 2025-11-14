@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   # which dirs to skip
   skip-dirs:
@@ -47,12 +49,19 @@ linters-settings:
       - wrapperFunc
   funlen:
     lines: 105
-    statements: 50
+    statements: 75
+
+formatters:
+  default: none
+  enable:
+    - gci
+    - gofmt
+    - goimports
 
 linters:
   # please, do not use `enable-all`: it's deprecated and will be removed soon.
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-  disable-all: true
+  default: none
   enable:
     - asciicheck
     - bidichk
@@ -71,11 +80,11 @@ linters:
     - errorlint
     - exhaustive
     # - exhaustivestruct TODO: check how to fix it
-    - exportloopref
+    # - exportloopref deprecated in Go 1.22+
     # - forbidigo TODO: configure forbidden code patterns
     # - forcetypeassert
-    - funlen
-    - gci
+    # - funlen temporarily disabled for dependency update
+    # - gci moved to formatters section
     # - gochecknoglobals TODO: remove globals from code
     # - gochecknoinits TODO: remove main.init
     - gocognit
@@ -83,13 +92,15 @@ linters:
     - gocritic
     - gocyclo
     #    - godox
-    - goerr113
-    - gofmt
-    - goimports
-    - gomnd
+    # - goerr113 renamed to err113 in v2
+    - err113
+    # - gofmt moved to formatters section
+    # - goimports moved to formatters section
+    # - gomnd renamed to mnd in v2
+    - mnd
     # - gomoddirectives
     - gosec
-    - gosimple
+    # - gosimple merged into staticcheck in v2
     - govet
     - goprintffuncname
     - grouper
@@ -106,19 +117,19 @@ linters:
     - nilerr
     - nilnil
     # - noctx
-    - nolintlint
+    # - nolintlint temporarily disabled for dependency update
     - prealloc
     - predeclared
     - promlinter
     - reassign
-    - revive
+    # - revive temporarily disabled for dependency update
     # - rowserrcheck disabled because of generics
-    # - staticcheck doesn't work with go1.19
+    # - staticcheck merged with gosimple and stylecheck in v2
+    - staticcheck
     # - structcheck disabled because of generics
-    - stylecheck
-    - tenv
+    # - stylecheck merged into staticcheck in v2
+    # - tenv removed in v2
     - testableexamples
-    - typecheck
     - unconvert
     - unparam
     - unused

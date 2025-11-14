@@ -356,6 +356,7 @@ func Test_mutatingWebhook_mutateContainers(t *testing.T) {
 }
 
 // helper function - make K8s Secret
+//
 //nolint:unparam
 func makeSecret(namespace, name string, data map[string][]byte) *corev1.Secret {
 	return &corev1.Secret{
@@ -369,6 +370,7 @@ func makeSecret(namespace, name string, data map[string][]byte) *corev1.Secret {
 }
 
 // helper function - make K8s ConfigMap
+//
 //nolint:unparam
 func makeConfigMap(namespace, name string, data map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
