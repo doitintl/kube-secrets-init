@@ -1,0 +1,11 @@
+{{- if and .Values.certManager.enabled .Values.certManager.createIssuer }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "kube-secrets-init.issuerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kube-secrets-init.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

@@ -1,0 +1,36 @@
+{{- if .Values.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "kube-secrets-init.certificateName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kube-secrets-init.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "kube-secrets-init.tlsSecretName" . }}
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  commonName: {{ include "kube-secrets-init.fullname" . }}.{{ .Release.Namespace }}.svc
+  dnsNames:
+    - {{ include "kube-secrets-init.fullname" . }}
+    - {{ include "kube-secrets-init.fullname" . }}.{{ .Release.Namespace }}
+    - {{ include "kube-secrets-init.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "kube-secrets-init.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - server auth
+    - digital signature
+    - key encipherment
+  issuerRef:
+    {{- if .Values.certManager.createIssuer }}
+    name: {{ include "kube-secrets-init.issuerName" . }}
+    kind: Issuer
+    group: cert-manager.io
+    {{- else }}
+    name: {{ required "certManager.issuerRef.name is required when certManager.createIssuer=false" .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}
+    group: {{ .Values.certManager.issuerRef.group }}
+    {{- end }}
+{{- end }}
