@@ -1,0 +1,115 @@
+replicaCount: 2
+
+image:
+  repository: doitintl/kube-secrets-init
+  pullPolicy: IfNotPresent
+  # If not set, appVersion from Chart.yaml is used.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Secrets provider passed to the webhook binary ("aws" or "google"). The webhook
+# also injects this flag into the mutated pods' init container, so this is the
+# only place to switch cloud provider.
+provider: google
+
+# Log level for the webhook binary (debug|info|warn|error).
+logLevel: info
+
+# Pull policy value passed to the webhook as --pull-policy (for the secrets-init init container it injects).
+initContainerPullPolicy: IfNotPresent
+
+# Extra CLI args appended verbatim to the container's args.
+extraArgs: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # If not set, a name is generated from the release.
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+service:
+  type: ClusterIP
+  port: 443
+  targetPort: 8443
+
+# TLS served by the webhook. Certificates are issued by cert-manager.
+# The Secret produced by the Certificate is mounted at /etc/webhook/certs.
+# Default filenames match the kubernetes.io/tls layout that cert-manager writes.
+tls:
+  # Mount path inside the container (matches --tls-cert-file / --tls-private-key-file below).
+  mountPath: /etc/webhook/certs
+  certFile: tls.crt
+  keyFile: tls.key
+
+certManager:
+  # Master switch. If false, no Issuer/Certificate is created and you must
+  # provide a pre-existing Secret via tls.existingSecret.
+  enabled: true
+
+  # Create a self-signed Issuer in this release's namespace. Set to false if
+  # you want to use an existing Issuer/ClusterIssuer (see issuerRef below).
+  createIssuer: true
+
+  # Reference to an existing Issuer/ClusterIssuer. Used only when createIssuer=false.
+  issuerRef:
+    name: ""
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+  # Certificate duration / renewal settings (optional).
+  duration: 87600h    # 10 year
+  renewBefore: 720h  # 30 days
+
+# Use a pre-existing TLS Secret instead of cert-manager. When set, certManager.enabled
+# should be false and the webhook's caBundle must be provided via webhook.caBundle.
+tls_existingSecret: ""
+
+webhook:
+  # Name of the MutatingWebhookConfiguration. Defaults to "<fullname>".
+  name: ""
+  # Fail: if the webhook is unreachable or returns an error, pod creation is rejected.
+  # Safe here because the release namespace, kube-system and non-opted-in pods are
+  # excluded from the webhook (see excludedNamespaces / optIn below).
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  timeoutSeconds: 10
+  # Skip namespaces that carry this label.
+  ignoreLabelKey: admission.secrets-init/ignore
+  # Namespaces always excluded from the webhook (matched via kubernetes.io/metadata.name).
+  # The release namespace is added automatically, so listing it here is harmless.
+  excludedNamespaces:
+    - kube-system
+  # Additional namespaceSelector matchExpressions / matchLabels (merged in).
+  namespaceSelector: {}
+
+  # Opt-in mode: the webhook is invoked ONLY on pods that carry a specific label.
+  # Note: Kubernetes admission webhooks can filter by labels only, not by annotations
+  # (see objectSelector in the admission API). If you need annotation-based opt-in,
+  # it must be implemented inside the webhook binary itself.
+  optIn:
+    enabled: true
+    labelKey: secrets-init.doit-intl.com/mutate
+    labelValue: "true"
+
+  # Extra objectSelector rules (merged on top of the opt-in selector).
+  objectSelector: {}
+  # Override caBundle only when tls_existingSecret is set (base64-encoded PEM).
+  caBundle: ""

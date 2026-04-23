@@ -1,0 +1,18 @@
+apiVersion: v2
+name: kube-secrets-init
+description: Kubernetes mutating admission webhook that injects secrets-init into pods, so secrets references (AWS/GCP) are resolved at container startup.
+type: application
+version: 0.1.0
+appVersion: "0.5.0"
+home: https://github.com/doitintl/kube-secrets-init
+sources:
+  - https://github.com/doitintl/kube-secrets-init
+keywords:
+  - secrets
+  - webhook
+  - mutating-webhook
+  - aws
+  - gcp
+  - cert-manager
+maintainers:
+  - name: doitintl

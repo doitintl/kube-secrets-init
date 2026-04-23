@@ -1,0 +1,65 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "kube-secrets-init.webhookName" . }}
+  labels:
+    {{- include "kube-secrets-init.labels" . | nindent 4 }}
+  {{- if .Values.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ printf "%s/%s" .Release.Namespace (include "kube-secrets-init.certificateName" .) }}
+  {{- end }}
+webhooks:
+  - name: secrets-init.doit-intl.com
+    clientConfig:
+      service:
+        name: {{ include "kube-secrets-init.fullname" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /pods
+        port: {{ .Values.service.port }}
+      {{- if and (not .Values.certManager.enabled) .Values.webhook.caBundle }}
+      caBundle: {{ .Values.webhook.caBundle }}
+      {{- end }}
+    namespaceSelector:
+      matchExpressions:
+        - key: {{ .Values.webhook.ignoreLabelKey }}
+          operator: DoesNotExist
+        {{- $excluded := concat (list .Release.Namespace) .Values.webhook.excludedNamespaces | uniq }}
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            {{- range $excluded }}
+            - {{ . | quote }}
+            {{- end }}
+      {{- with .Values.webhook.namespaceSelector.matchExpressions }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webhook.namespaceSelector.matchLabels }}
+      matchLabels:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- if or .Values.webhook.optIn.enabled .Values.webhook.objectSelector }}
+    objectSelector:
+      {{- if .Values.webhook.optIn.enabled }}
+      matchLabels:
+        {{ .Values.webhook.optIn.labelKey }}: {{ .Values.webhook.optIn.labelValue | quote }}
+        {{- with .Values.webhook.objectSelector.matchLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.webhook.objectSelector.matchExpressions }}
+      matchExpressions:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- else }}
+      {{- toYaml .Values.webhook.objectSelector | nindent 6 }}
+      {{- end }}
+    {{- end }}
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["pods"]
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    reinvocationPolicy: {{ .Values.webhook.reinvocationPolicy }}
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]
+    timeoutSeconds: {{ .Values.webhook.timeoutSeconds }}

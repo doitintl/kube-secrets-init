@@ -1,0 +1,27 @@
+{{ include "kube-secrets-init.fullname" . }} has been installed into namespace "{{ .Release.Namespace }}".
+
+MutatingWebhookConfiguration : {{ include "kube-secrets-init.webhookName" . }}
+Service                      : {{ include "kube-secrets-init.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+{{- if .Values.certManager.enabled }}
+
+TLS certificates are managed by cert-manager:
+  - Certificate : {{ include "kube-secrets-init.certificateName" . }}
+  - Secret      : {{ include "kube-secrets-init.tlsSecretName" . }}
+{{- if .Values.certManager.createIssuer }}
+  - Issuer      : {{ include "kube-secrets-init.issuerName" . }} (self-signed, in-namespace)
+{{- else }}
+  - IssuerRef   : {{ .Values.certManager.issuerRef.kind }}/{{ .Values.certManager.issuerRef.name }}
+{{- end }}
+
+The caBundle in the MutatingWebhookConfiguration is injected automatically by
+cert-manager's cainjector via the `cert-manager.io/inject-ca-from` annotation.
+Make sure cert-manager (with cainjector) is installed in the cluster.
+{{- else }}
+
+cert-manager integration is disabled. You must provide the TLS Secret
+"{{ .Values.tls_existingSecret }}" and set `webhook.caBundle` in values.
+{{- end }}
+
+Pods in namespaces without the label "{{ .Values.webhook.ignoreLabelKey }}"
+will be processed by the webhook.
